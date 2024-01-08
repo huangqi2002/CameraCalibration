@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TabVideoCalibration</class>
+ <widget class="QWidget" name="TabVideoCalibration">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>950</width>
+    <height>511</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>标定拼接Tab</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string>显示</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_8">
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_fg">
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_6" stretch="1,0">
+          <item>
+           <widget class="QLabel" name="label_video_left_2">
+            <property name="text">
+             <string>左视频</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_7">
+            <item>
+             <widget class="QLabel" name="label_img_left_2">
+              <property name="minimumSize">
+               <size>
+                <width>72</width>
+                <height>48</height>
+               </size>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::Box</enum>
+              </property>
+              <property name="text">
+               <string>左截图</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_3">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_7" stretch="1,0">
+          <item>
+           <widget class="QLabel" name="label_video_right_2">
+            <property name="text">
+             <string>右视频</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_9">
+            <item>
+             <widget class="QLabel" name="label_img_right_2">
+              <property name="minimumSize">
+               <size>
+                <width>72</width>
+                <height>48</height>
+               </size>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::Box</enum>
+              </property>
+              <property name="text">
+               <string>右截图</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_5">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_rx5">
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_5" stretch="1,0">
+          <item>
+           <widget class="QLabel" name="label_video_left">
+            <property name="text">
+             <string>左视频</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_6">
+            <item>
+             <widget class="QLabel" name="label_img_left">
+              <property name="minimumSize">
+               <size>
+                <width>72</width>
+                <height>48</height>
+               </size>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::Box</enum>
+              </property>
+              <property name="text">
+               <string>左截图</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="1,0">
+          <item>
+           <widget class="QLabel" name="label_video_middle">
+            <property name="text">
+             <string>中视频</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_middle">
+            <item>
+             <widget class="QLabel" name="label_img_middle">
+              <property name="minimumSize">
+               <size>
+                <width>72</width>
+                <height>48</height>
+               </size>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::Box</enum>
+              </property>
+              <property name="text">
+               <string>中截图</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_img_spacer">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1,0">
+          <item>
+           <widget class="QLabel" name="label_video_right">
+            <property name="text">
+             <string>右视频</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_8">
+            <item>
+             <widget class="QLabel" name="label_img_right">
+              <property name="minimumSize">
+               <size>
+                <width>72</width>
+                <height>48</height>
+               </size>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::Box</enum>
+              </property>
+              <property name="text">
+               <string>右截图</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_4">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBox_2">
+     <property name="title">
+      <string>操作</string>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>591</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_img_left_middle">
+        <property name="minimumSize">
+         <size>
+          <width>100</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>16</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>截图左中</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_img_middle_right">
+        <property name="minimumSize">
+         <size>
+          <width>100</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>16</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>截图中右</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_start">
+        <property name="minimumSize">
+         <size>
+          <width>100</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>16</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>开始标定</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

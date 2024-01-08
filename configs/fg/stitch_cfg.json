@@ -1,0 +1,25 @@
+{
+        "stitch_overlap": [
+          {
+            "id": 0,
+            "overlap": 204
+          }
+        ],
+        "stitch_lut_path": [
+          {
+            "id": 0,
+            "path": "/mnt/usr/kvdb/usr_data_kvdb/stitch_lut0.bin"
+          },
+          {
+            "id": 1,
+            "path": "/mnt/usr/kvdb/usr_data_kvdb/stitch_lut1.bin"
+          }
+        ],
+        "stitch_blend_param": [
+          {
+            "id": 0,
+            "position": 102,
+            "range": 10
+          }
+        ]
+}

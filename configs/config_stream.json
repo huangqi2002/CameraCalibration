@@ -1,0 +1,91 @@
+{
+  "device_list": [
+    {
+      "device_type": "FG",
+      "rtsp_stream": [
+        {
+          "enable": 1,
+          "id": 0,
+          "shame": "rtsp",
+          "url": "/stitch_0_0",
+          "port": 8557
+        },
+        {
+          "enable": 1,
+          "id": 1,
+          "shame": "rtsp",
+          "url": "/left_main_0_1",
+          "port": 8557
+        },
+        {
+          "enable": 0,
+          "id": 2,
+          "shame": "rtsp",
+          "url": "/left_sub_0_2",
+          "port": 8557
+        },
+        {
+          "enable": 1,
+          "id": 4,
+          "shame": "rtsp",
+          "url": "/mid_main_0_4",
+          "port": 8557
+        },
+        {
+          "enable": 1,
+          "id": 5,
+          "shame": "rtsp",
+          "url": "/right_main_0_5",
+          "port": 8557
+        },
+        {
+          "enable": 0,
+          "id": 6,
+          "shame": "rtsp",
+          "url": "/right_sub_0_6",
+          "port": 8557
+        }
+      ]
+    },
+    {
+      "device_type": "RX",
+      "rtsp_stream": [
+        {
+          "enable": 1,
+          "id": 0,
+          "shame": "rtsp",
+          "url": "/stitch_0_0",
+          "port": 8557
+        },
+        {
+          "enable": 1,
+          "id": 1,
+          "shame": "rtsp",
+          "url": "/left_main_0_1",
+          "port": 8557
+        },
+        {
+          "enable": 0,
+          "id": 2,
+          "shame": "rtsp",
+          "url": "/left_sub_0_2",
+          "port": 8557
+        },
+        {
+          "enable": 1,
+          "id": 5,
+          "shame": "rtsp",
+          "url": "/right_main_0_5",
+          "port": 8557
+        },
+        {
+          "enable": 0,
+          "id": 6,
+          "shame": "rtsp",
+          "url": "/right_sub_0_6",
+          "port": 8557
+        }
+      ]
+    }
+  ]
+}

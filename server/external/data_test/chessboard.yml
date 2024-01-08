@@ -1,0 +1,42 @@
+IsAuto_Version: 1
+camera_count: 2
+chessboard_count: 7
+Min_ChessboardCount_Limit: 7
+IsLongEdgeStitching: 0
+IsRotating180: 0
+base_directory: '.\data_test'
+input_filename: '.\data_test\stitch.cal'
+output_filename: '.\data_test\stitch_out.cal'
+camera_info:
+ - width: 2688
+   height: 1520
+   lens: 1
+   hfov: 110
+ - width: 2688
+   height: 1520
+   lens: 1
+   hfov: 110
+calibration_sets:
+ - {set_name: 'avsp_calib_01', cameras: [1, 2], filename_patterns ['^camera0_01_[0-9]*.png$', '^camera1_01_[0-9]*.png$'], board_shape: [9, 6], board_scale: 30}
+mask_info:
+ - camera0_01_0: 11 215 233 362
+ - camera0_01_1: 276 208 237 238
+ - camera0_01_2: 552 171 200 192
+ - camera0_01_3: 782 119 164 235
+ - camera0_01_4: 1012 111 190 240
+ - camera0_01_5: 1295 59 208 249
+ - camera0_01_6: 1600 49 192 249
+ - camera0_01_7: 1879 77 192 259
+ - camera0_01_8: 2152 122 183 247
+ - camera0_01_9: 2407 161 159 238
+
+ - camera1_01_0: 2445 155 220 352
+ - camera1_01_1: 2167 138 236 223
+ - camera1_01_2: 1928 117 195 193
+ - camera1_01_3: 1730 78 164 233
+ - camera1_01_4: 1475 53 186 224
+ - camera1_01_5: 1172 80 203 241
+ - camera1_01_6: 881 116 190 243
+ - camera1_01_7: 604 140 186 250
+ - camera1_01_8: 341 199 180 254
+ - camera1_01_9: 109 305 160 247

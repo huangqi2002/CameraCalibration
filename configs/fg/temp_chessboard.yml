@@ -1,0 +1,44 @@
+IsAuto_Version: 1
+camera_count: 2
+chessboard_count: 6
+Min_ChessboardCount_Limit: 6
+IsLongEdgeStitching: 1
+IsRotating180: 1
+base_directory: 'D:\\product\\fgStitch\\fgStitch\\calibration'
+input_filename: 'D:\\product\\fgStitch\\fgStitch\\calibration\\model.cal'
+output_filename: 'D:\\product\\fgStitch\\fgStitch\\calibration\\stitch_model.cal'
+camera_info:
+  - width: 2960
+    height: 1664
+    lens: 0
+    hfov: 90
+  - width: 2960
+    height: 1664
+    lens: 0
+    hfov: 90
+
+calibration_sets:
+  - {set_name: 'avsp_calib_01', cameras: [1, 2], filename_patterns: ['^camera0_01_[0-9]*.jpg$', '^camera1_01_[0-9]*.jpg$'], board_shape: [11, 8], board_scale: 50}
+  
+mask_info:
+  - camera0_01_0:	0 0 0 0
+  - camera0_01_5:	0 0 0 0
+  - camera0_01_2:	0 0 0 0
+  - camera0_01_5:	0 0 0 0
+  - camera0_01_4:	0 0 0 0
+  - camera0_01_5:	0 0 0 0
+  - camera0_01_6:	0 0 0 0
+  - camera0_01_7:	0 0 0 0
+  - camera0_01_8:	0 0 0 0
+  - camera0_01_9:	0 0 0 0
+  
+  - camera1_01_0:	0 0 0 0
+  - camera1_01_5:	0 0 0 0
+  - camera1_01_6:	0 0 0 0
+  - camera1_01_7:	0 0 0 0
+  - camera1_01_4:	0 0 0 0
+  - camera1_01_5:	0 0 0 0
+  - camera1_01_6:	0 0 0 0
+  - camera1_01_7:	0 0 0 0
+  - camera1_01_8:	0 0 0 0
+  - camera1_01_9:	0 0 0 0
