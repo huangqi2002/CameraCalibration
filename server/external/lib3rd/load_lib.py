@@ -56,10 +56,12 @@ class VzCalibrationSDK:
         if not self.calibration_dll:
             print("load VZ_Calibration.dll failed.")
             return -1
-        image_path = image_path.encode(encoding="utf-8", errors="ignore")
-        print("befor rotate_and_resize_images_01")
-        print(image_path)
-        ret = self.calibration_dll.rotate_and_resize_images(image_path)
+        modified_image_path = image_path.replace("\\", "/")
+        print(modified_image_path)
+        modified_image_path = modified_image_path.encode(encoding="utf-8", errors="ignore")
+        # image_path = image_path.encode(encoding="utf-8", errors="ignore")
+        # print(image_path)
+        ret = self.calibration_dll.rotate_and_resize_images(modified_image_path)
         print("after rotate_and_resize_images")
         return ret
 

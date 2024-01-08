@@ -15,6 +15,7 @@ class Ui_TabInternalCalibration(object):
     def setupUi(self, TabInternalCalibration):
         TabInternalCalibration.setObjectName("TabInternalCalibration")
         TabInternalCalibration.resize(847, 515)
+        TabInternalCalibration.setMaximumSize(QtCore.QSize(1920, 1048))
         self.verticalLayout_4 = QtWidgets.QVBoxLayout(TabInternalCalibration)
         self.verticalLayout_4.setObjectName("verticalLayout_4")
         self.groupBox_3 = QtWidgets.QGroupBox(TabInternalCalibration)

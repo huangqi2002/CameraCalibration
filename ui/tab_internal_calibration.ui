@@ -10,6 +10,12 @@
     <height>515</height>
    </rect>
   </property>
+  <property name="maximumSize">
+   <size>
+    <width>1920</width>
+    <height>1048</height>
+   </size>
+  </property>
   <property name="windowTitle">
    <string>内参标定Tab</string>
   </property>
