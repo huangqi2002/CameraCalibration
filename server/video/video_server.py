@@ -19,23 +19,25 @@ from PyQt5.QtCore import QObject
 class VideoServer(QObject):
     signal_cameraconnect_num = pyqtSignal(int)
     frame_stop_cond = threading.Condition()
-    cameras_mutex = threading.Lock()
+    work_threads_mutex = threading.Lock()
+    camera_connect_mutex = threading.Lock()
 
     def __init__(self):
         super().__init__()
         self.cameras = None
         self.work_threads = None
+        self.play_thread_mutex = None
         self.camera_cnt = 0
-        self.bool_stop_get_frame = False
+        # self.bool_stop_get_frame = False
 
-    def stop_get_frame(self):
-        if not self.camera_cnt:
-            return
-        self.frame_stop_cond.acquire()
-        self.bool_stop_get_frame = True
-        while len(self.work_threads) != 0:
-            self.frame_stop_cond.wait()
-        self.frame_stop_cond.release()
+    # def stop_get_frame(self):
+    #     if not self.camera_cnt:
+    #         return
+    #     self.frame_stop_cond.acquire()
+    #     self.bool_stop_get_frame = True
+    #     while len(self.work_threads) != 0:
+    #         self.frame_stop_cond.wait()
+    #     self.frame_stop_cond.release()
 
     def create(self, cameras: dict):
         # self.stop_get_frame()
@@ -46,14 +48,19 @@ class VideoServer(QObject):
             return
 
         self.work_threads = []
+        self.play_thread_mutex = {}
 
-        self.cameras_mutex.acquire()
+        self.work_threads_mutex.acquire()
         for direction, camera in self.cameras.items():
+            paused = True
+            # pause_cond = threading.Condition(threading.Lock())
+            self.play_thread_mutex[direction] = [paused, threading.Condition(threading.Lock())]
             camera.is_open = True
-            play_thread = threading.Thread(target=self.get_frame, args=(camera,))
+            play_thread = threading.Thread(target=self.get_frame, args=(direction, camera,))
             play_thread.start()
             self.work_threads.append(play_thread)
-        self.cameras_mutex.release()
+            print(f"{direction} Thread craete successful")
+        self.work_threads_mutex.release()
 
     def get_cameras(self):
         return self.cameras
@@ -66,8 +73,37 @@ class VideoServer(QObject):
         if frame is not None:
             cv2.imwrite(filename, frame)
 
+    def pause(self, direction: str = None):
+        if not self.play_thread_mutex:
+            return
+        if direction in self.play_thread_mutex:
+            if self.play_thread_mutex[direction][0]:
+                return
+            with self.play_thread_mutex[direction][1]:
+                self.play_thread_mutex[direction][0] = True
+            print(f"{direction} is pause")
+
+    def pause_all(self):
+        for direction, camera in self.cameras.items():
+            self.pause(direction)
+
+    def resume(self, direction: str = None):
+        if not self.play_thread_mutex:
+            return
+        if not self.play_thread_mutex[direction][0]:
+            return
+        if direction in self.play_thread_mutex:
+            with self.play_thread_mutex[direction][1]:
+                self.play_thread_mutex[direction][0] = False
+                self.play_thread_mutex[direction][1].notify()  # 唤醒线程
+                print(f"{direction} is resume notify")
+
+    def resume_all(self):
+        for direction, camera in self.cameras.items():
+            self.resume(direction)
+
     # @staticmethod
-    def get_frame(self, camera: Camera):
+    def get_frame(self, direction, camera: Camera):
         if camera is None or camera.rtsp_url is None:
             print("get_frame, Invalid camera or rtsp_url")
 
@@ -95,12 +131,19 @@ class VideoServer(QObject):
                     print(f"start play:{camera.rtsp_url} failed")
                 # camera.cap = cv2.VideoCapture("111.jpg")
                 while camera.cap.isOpened() and camera.is_open:
-                    if self.bool_stop_get_frame:
-                        break
+                    # print(f"{direction} 0")
+                    # if threading.currentThread().getName()=='Thread-9':
+                    #     print("Thread-9")
+                    with self.play_thread_mutex[direction][1]:
+                        # print(f"{direction} 1 {self.play_thread_mutex[direction][0]}")
+                        while self.play_thread_mutex[direction][0]:
+                            self.play_thread_mutex[direction][1].wait()  # 等待被唤醒
+                            print(f"{direction} is resume")
+
                     # fps = cap.get(cv2.CAP_PROP_FPS)
                     ret, frame = camera.cap.read()
                     if not ret:
-                        # print("Failed to retrieve frame")
+                        print(f"{direction} Failed to retrieve frame")
                         camera.frame_error_count += 1
                         if camera.frame_error_count >= camera.frame_time * 5:
                             print("Exceeded frame error count, exiting")
@@ -109,9 +152,10 @@ class VideoServer(QObject):
                         time.sleep(camera.frame_time / 1000)
                         continue
 
-                    # print(threading.currentThread().getName(), "Get Frame", camera.rtsp_url)
+                    print(threading.currentThread().getName(), "Get Frame", camera.rtsp_url)
                     camera.frame = frame
                     camera.frame_error_count = 0
+                    time.sleep(camera.frame_time / 1000)
 
                 self.camera_cnt -= 1
                 print(f"{camera.rtsp_url} is disconnected")
@@ -122,14 +166,13 @@ class VideoServer(QObject):
                 print(f"VideoCapture exception: {e}")
 
         current_thread = threading.current_thread()
-        self.cameras_mutex.acquire()
+        self.work_threads_mutex.acquire()
         if current_thread in self.work_threads:
             self.work_threads.remove(current_thread)
-        self.cameras_mutex.release()
-        if len(self.work_threads) == 0 and self.bool_stop_get_frame == True:
+        self.work_threads_mutex.release()
+        if len(self.work_threads) == 0:
             print(f"finnal")
             self.frame_stop_cond.acquire()
-            self.bool_stop_get_frame = False
             print("self.frame_stop_cond.notify_all()")
             self.frame_stop_cond.notify_all()
             self.frame_stop_cond.release()
@@ -211,10 +254,10 @@ class VideoServer(QObject):
             return
         if not self.work_threads:
             return
+        self.resume_all()
         for key, camera in self.cameras.items():
             camera.is_open = False
         self.frame_stop_cond.acquire()
-        self.bool_stop_get_frame = True
         while len(self.work_threads) != 0:
             self.frame_stop_cond.wait()
         self.frame_stop_cond.release()
@@ -226,8 +269,8 @@ class VideoServer(QObject):
         # for work_thread in self.work_threads:
         #     if work_thread.isRunning():
         #         work_thread.quit()
-        self.cameras_mutex.acquire()
+        self.work_threads_mutex.acquire()
         self.work_threads.clear()
         self.work_threads = None
-        self.cameras_mutex.release()
+        self.work_threads_mutex.release()
         self.camera_cnt = 0

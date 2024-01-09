@@ -41,7 +41,7 @@ class VideoCalibrationController(BaseControllerTab):
 
         # 绑定配置文件中的相机与去显示的lable
         self.bind_label_and_timer("left", self.view.label_video_left, 0)  # 270)
-        self.bind_label_and_timer("middle_left", self.view.label_video_middle, 270)
+        # self.bind_label_and_timer("middle_left", self.view.label_video_middle, 270)
         self.bind_label_and_timer("right", self.view.label_video_right, 0)  # 270)
 
     def on_show_loading_dialog(self, show, msg):

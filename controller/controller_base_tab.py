@@ -24,6 +24,7 @@ class BaseControllerTab(BaseController):
 
     show_message_signal = None
     reboot_finish_signal = None
+    current_direction = 'left'
 
     # 绑定配置文件中的相机与去显示的lable
     def bind_label_and_timer(self, direction: str, label: QLabel, rotate):
@@ -47,6 +48,8 @@ class BaseControllerTab(BaseController):
         if cameras is None:
             return
         if app_model.is_connected:
+            app_model.video_server.pause_all()
+            # print(f"{index} pause_all")
             self.start_video(cameras)
 
     # 连接设备
@@ -54,6 +57,7 @@ class BaseControllerTab(BaseController):
         if self.current_tab_index != self.tab_index:
             return
         if connect_state:
+            app_model.video_server.pause_all()
             cameras = app_model.video_server.get_cameras()
             self.start_video(cameras)
         else:
@@ -69,21 +73,28 @@ class BaseControllerTab(BaseController):
             camera = cameras.get(key)
             if camera is None:
                 continue
+            app_model.video_server.resume(key)
             video.timer = QTimer(self)
-            video.timer.timeout.connect(partial(self.update_frame, camera, video))
+            ret_a = video.timer.timeout.connect(partial(self.update_frame, camera, video))
             video.timer.start(100)
             print("Timer is active:", video.timer.isActive())
             print("start_timer")
 
+
     # 暂停播放视频
     def parse_video(self):
         for key, video in self.video_map.items():
+            # app_model.video_server.pause(key)
             if video.timer:
                 video.timer.stop()
 
     # 暂停播放视频，并只播放指定视频
     def start_video_unique(self, direction: str, label: QLabel, rotate):
+    # def start_video_unique(self, direction: str):
         self.parse_video()
+        for key, video in self.video_map.items():
+            app_model.video_server.pause(key)
+
         self.video_map = {}
         self.bind_label_and_timer(direction, label, rotate)
         cameras = app_model.video_server.get_cameras()
@@ -92,12 +103,13 @@ class BaseControllerTab(BaseController):
         if app_model.is_connected:
             self.start_video(cameras)
         print("start_video_unique\n")
+        # app_model.video_server.resume_uniq(direction)
 
     # 更新视频帧到lable上
     # camera中可以读到相机当前时刻的帧
     # video中包含了相机对lable的对应关系
     def update_frame(self, camera, video):
-        # print("update_frame\n")
+        print(f"{camera.rtsp_url} update_frame\n")
         if camera is None or camera.frame is None:
             # self.log.log_err(f"Tab({self.tab_index}), Invalid camera or frame")
             return

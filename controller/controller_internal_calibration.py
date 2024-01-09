@@ -17,6 +17,7 @@ from server.web.web_server import *
 
 from utils.m_global import m_connect_local
 
+
 class InternalCalibrationController(BaseControllerTab):
     video_map = {}
     internal_data_path = None
@@ -53,7 +54,7 @@ class InternalCalibrationController(BaseControllerTab):
 
         # 绑定配置文件中的相机与去显示的lable
         # app_model.camera_list
-        self.bind_label_and_timer("left", self.view.label_video_fg, 0)# 270)
+        self.bind_label_and_timer("left", self.view.label_video_fg, 0)  # 270)
         # self.bind_label_and_timer("middle_left", self.view.label_video_fg, 270)
         # self.bind_label_and_timer("middle_right", self.view.label_video_fg, 270)
         # self.bind_label_and_timer("right", self.view.label_video_fg, 270)
@@ -180,7 +181,7 @@ class InternalCalibrationController(BaseControllerTab):
     def save_screenshot(self):
         path_name_list = ["L", "ML", "MR", "R"]
         direction_list = ["left", "middle_left", "middle_right", "right"]
-        direction_type = self.screenshot_count//2
+        direction_type = self.screenshot_count // 2
 
         if self.screenshot_count == 0:
             self.show_message_signal.emit(True, "左相机截图")
@@ -188,7 +189,8 @@ class InternalCalibrationController(BaseControllerTab):
             self.screeshot_buttom_timer.stop()
             self.view.set_screenshot_button_enable(False)
             self.screenshot_count = 0
-            self.start_video_unique("left", self.view.label_video_fg, 0)  # 270)
+            self.start_video_unique("left", self.view.label_video_fg, 0)
+            self.start_video_fg_once.emit()
             self.view.set_screenshot_button_text(self.screenshot_count)
             self.get_inter_stitch_fg()
             return
@@ -198,7 +200,7 @@ class InternalCalibrationController(BaseControllerTab):
         filename = f"ispPlayer_{int(time.time())}.jpg"
         ## 截图
         pic_path = os.path.join(internal_data_path, filename)
-        #if True:
+        # if True:
         if m_connect_local:
             frame = cv2.imread("m_data/camera.jpg")
             if direction_type == 0 or direction_type == 3:
@@ -211,19 +213,19 @@ class InternalCalibrationController(BaseControllerTab):
         self.show_image_fg_signal.emit(self.screenshot_count, pic_path)
         self.view.set_screenshot_button_text(self.screenshot_count + 1)
         ## 图像分割
-        getBoardPosition(pic_path, (11, 8), 6, internal_data_path, self.screenshot_count%2)
+        getBoardPosition(pic_path, (11, 8), 6, internal_data_path, self.screenshot_count % 2)
         if self.screenshot_count == 1:
-            self.start_video_unique("middle_left", self.view.label_video_fg, 0)# 270)
+            self.start_video_unique("middle_left", self.view.label_video_fg, 0)
             self.start_video_fg_once.emit()
             self.show_message_signal.emit(True, "中左相机截图")
 
         elif self.screenshot_count == 3:
-            self.start_video_unique("middle_right", self.view.label_video_fg, 0)# 270)
+            self.start_video_unique("middle_right", self.view.label_video_fg, 0)
             self.start_video_fg_once.emit()
             self.show_message_signal.emit(True, "中右相机截图")
 
         elif self.screenshot_count == 5:
-            self.start_video_unique("right", self.view.label_video_fg, 0)# 270)
+            self.start_video_unique("right", self.view.label_video_fg, 0)
             self.start_video_fg_once.emit()
             self.show_message_signal.emit(True, "右相机截图")
         self.work_thread_state = False
@@ -276,7 +278,7 @@ class InternalCalibrationController(BaseControllerTab):
     # 内参计算失败
     def on_work_thread_finish_failed(self, error_msg):
         # self.view.close_loading()
-        self.show_message_signal.emit(False, f"内参处理"+error_msg)
+        self.show_message_signal.emit(False, f"内参处理" + error_msg)
         self.work_thread_state = False
         self.view.set_screenshot_button_enable(True)
         self.show_image_fg_signal.emit(-1, "")
@@ -294,7 +296,6 @@ class InternalCalibrationController(BaseControllerTab):
         with open(internal_file, "w", encoding="utf-8") as f:
             f.write(result)
         return internal_file
-
 
     def on_btn_upload_internal_file(self):
         self.device_ip = app_model.device_model.ip
