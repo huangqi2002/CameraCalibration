@@ -16,18 +16,35 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.set_choose_file_visible(False)
 
         self.screen_lable_list = [self.label_img_left_fg_1, self.label_img_left_fg_2,
-                            self.label_img_middle_left_fg_1, self.label_img_middle_left_fg_2,
-                            self.label_img_middle_right_fg_1, self.label_img_middle_right_fg_2,
-                            self.label_img_right_fg_1, self.label_img_right_fg_2]
+                                  self.label_img_middle_left_fg_1, self.label_img_middle_left_fg_2,
+                                  self.label_img_middle_right_fg_1, self.label_img_middle_right_fg_2,
+                                  self.label_img_right_fg_1, self.label_img_right_fg_2]
+        for i in range(len(self.screen_lable_list)):
+            if i % 2 == 1:
+                self.screen_lable_list[i].hide()
 
-        self.pushbotton_text = ["截图（左1）", "截图（左2）",
-                           "截图（中左1）", "截图（中左2）",
-                           "截图（中右1）", "截图（中右2）",
-                           "截图（右1）", "截图（右2）", "标定"]
+        self.pushbotton_text = ["截图（左）", "截图（左）",
+                                "截图（中左）", "截图（中左）",
+                                "截图（中右）", "截图（中右）",
+                                "截图（右）", "截图（右）", "标定"]
 
         self.pushButton_screenshot.setStyleSheet("QPushButton:pressed { background-color: #666; }"
                                                  "QPushButton:disabled { background-color: #444; color: #999; }")
 
+        self.pushButton_start.setStyleSheet("QPushButton:pressed { background-color: #666; }"
+                                            "QPushButton:disabled { background-color: #444; color: #999; }")
+
+        self.position_type_text = ["左", "中左", "中右", "右"]
+        for position_item in self.position_type_text:
+            self.position_comboBox.addItem(position_item)
+        self.position_comboBox.setStyleSheet("{ background-color: #444; color: #999; }")
+
+        self.position_comboBox.setStyleSheet("""
+                QComboBox::item { color: red; }
+                QComboBox::item:selected { background-color: yellow; }
+            """)
+        self.start_ok = False
+        self.update()
 
     def set_choose_file_visible(self, visible=True):
         self.label.setVisible(visible)
@@ -89,7 +106,9 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.label_img_right.setPixmap(pixmap)
 
     def set_image_fg(self, screen_label_count, img_path):
-        if(screen_label_count == -1):
+        if not os.path.exists(img_path):
+            return
+        if screen_label_count == -1:
             for label in self.screen_lable_list:
                 label.clear()
             return
@@ -107,6 +126,10 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.pushButton_screenshot.setEnabled(enable)
         # self.pushButton_screenshot.setVisible(enable)
 
+    def set_start_button_enable(self, enable):
+        self.start_ok = enable
+        self.pushButton_start.setEnabled(enable)
+
     def set_layout_middle_visible(self, visible):
         self.set_video_middle_visible(visible)
         self.label_img_middle.setVisible(visible)
@@ -114,11 +137,14 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
 
     def set_layout_fg(self, visible):
         self.hide_layout_widgets(self.horizontalLayout_fg, visible)
-        self.pushButton_screenshot.setVisible(visible)
+        self.pushButton_screenshot.setEnabled(visible)
+        if visible:
+            self.pushButton_start.setEnabled(self.start_ok)
 
     def set_layout_rx5(self, visible):
         self.hide_layout_widgets(self.horizontalLayout_rx5, visible)
-        self.pushButton_start.setVisible(visible)
+        if visible:
+            self.pushButton_start.setEnabled(True)
 
     def hide_layout_widgets(self, layout, visible):
         # 遍历布局内所有元素
@@ -134,6 +160,10 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
             # 如果是子布局（sub-layout），递归调用隐藏函数
             elif isinstance(item, QtWidgets.QLayoutItem):
                 self.hide_layout_widgets(item.layout(), visible)
+
+        for i in range(len(self.screen_lable_list)):
+            if i % 2 == 1:
+                self.screen_lable_list[i].hide()
 
     @staticmethod
     def set_spacer_visible(spacer, visible):

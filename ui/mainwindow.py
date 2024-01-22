@@ -29,7 +29,8 @@ class MainWindow(QtWidgets.QMainWindow, BaseView, Ui_MainWindow):
         if m_connect_local:
             self.widget_common_bar.lineEdit_device_ip.setText("192.168.1.11")
         else:
-            self.widget_common_bar.lineEdit_device_ip.setText("192.168.111.10")
+            self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.235")
+            # self.widget_common_bar.lineEdit_device_ip.setText("192.168.111.10")
             # self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.131")
             # self.widget_common_bar.lineEdit_device_ip.setText("192.168.113.101")
             # self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.110")

@@ -56,8 +56,10 @@ def stitch_test(filePath):
     img_sizeLR_NEW = (2960, 1664)
     # img_sizeML = img_sizeMR = img_sizeLR_NEW
 
+    print(1)
     mtxL, distortionL, __, __, reProjectionErrorL = runInCalib_2(mode, filePath + "/L", "chessboard", False,
                                                                  img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 25)
+    print(2)
     if mtxL is None or distortionL is None or reProjectionErrorL is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorL >= precision:

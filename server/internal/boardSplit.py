@@ -17,9 +17,10 @@ def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
 
     grayHigh = 1080
     grayWith = 1920
-    factorWith = imgWith / grayWith
-    factorHigh = imgHigh / grayHigh
-    gray = cv2.resize(inImg, (grayWith, grayHigh))
+    factor = min(imgWith / grayWith, imgHigh / grayHigh)
+    # factorWith = imgWith / grayWith
+    # factorHigh = imgHigh / grayHigh
+    gray = cv2.resize(inImg, (int(imgWith / factor), int(imgHigh / factor)))
     m_time = time.time()
     while (ret):
         # 寻找并绘制每个棋盘格的角点
@@ -51,12 +52,12 @@ def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
     m_time = time.time() - m_time
     for idI in range(len(dstRect)):
         outImg = np.zeros((imgHigh, imgWith), dtype=uint8)
-        subRect = [i for i in dstRect[idI]]
+        subRect = tuple(int(item * factor) for item in dstRect[idI])
         x, y, w, h = subRect
-        x = int(x * factorWith)
-        w = int(w * factorWith)
-        y = int(y * factorHigh)
-        h = int(h * factorHigh)
+        # x = int(x * factor)
+        # w = int(w * factor)
+        # y = int(y * factor)
+        # h = int(h * factor)
         # inRectImg = inImg[subRect[1]:subRect[1]+subRect[3], subRect[0]:subRect[0]+subRect[2]]
         # outRectImg = outImg[subRect[1]:subRect[1]+subRect[3], subRect[0]:subRect[0]+subRect[2]]
         outImg[y:y + h, x:x + w] = \

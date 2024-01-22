@@ -109,7 +109,7 @@ class BaseControllerTab(BaseController):
     # camera中可以读到相机当前时刻的帧
     # video中包含了相机对lable的对应关系
     def update_frame(self, camera, video):
-        print(f"{camera.rtsp_url} update_frame\n")
+        # print(f"{camera.rtsp_url} update_frame\n")
         if camera is None or camera.frame is None:
             # self.log.log_err(f"Tab({self.tab_index}), Invalid camera or frame")
             return

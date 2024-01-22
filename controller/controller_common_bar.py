@@ -117,15 +117,21 @@ class CommonBarController(BaseController):
         app_model.is_connected = True
         self.view.set_connect_device_btn_text("断开连接")
         # 等待设备重启后获取rtsp视频流
-        video_config_list = app_model.config_video.get(self.device_type)
+
+        if m_connect_local:
+            video_config_list = app_model.config_model.read_config_file("config_local.json")
+        else:
+            video_config_list = app_model.config_video.get(self.device_type)
         if not video_config_list:
             self.log.log_err(f"{self.device_type} type not in config_video.json")
             return
 
         for config_item in video_config_list:
             camera = Camera()
-            camera.rtsp_url = f"{config_item.get('shame')}://{app_model.device_model.ip}:{config_item.get('port')}{config_item.get('url')}"
-
+            if m_connect_local:
+                camera.rtsp_url = f"{config_item.get('local_video_path')}"
+            else:
+                camera.rtsp_url = f"{config_item.get('shame')}://{app_model.device_model.ip}:{config_item.get('port')}{config_item.get('url')}"
             direction = config_item.get("direction")
             app_model.camera_list[direction] = camera
 

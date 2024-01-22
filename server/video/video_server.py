@@ -14,6 +14,9 @@ from PyQt5.QtWidgets import QLabel
 from model.camera import Camera
 from utils.m_global import m_connect_local
 from PyQt5.QtCore import QObject
+from multiprocessing import Process
+
+import time
 
 
 class VideoServer(QObject):
@@ -67,11 +70,21 @@ class VideoServer(QObject):
 
     def save_frame(self, direction, filename):
         if self.cameras is None:
-            return
+            return -1
         camera = self.cameras.get(direction)
         frame = camera.frame
         if frame is not None:
             cv2.imwrite(filename, frame)
+            return 0
+        return -1
+
+    def camera_state(self, direction):
+        if self.cameras is None:
+            return False
+        camera = self.cameras.get(direction)
+        if not (camera.cap.isOpened() and camera.is_open):
+            return False
+        return True
 
     def pause(self, direction: str = None):
         if not self.play_thread_mutex:
@@ -81,7 +94,7 @@ class VideoServer(QObject):
                 return
             with self.play_thread_mutex[direction][1]:
                 self.play_thread_mutex[direction][0] = True
-            print(f"{direction} is pause")
+            # print(f"{direction} is pause")
 
     def pause_all(self):
         for direction, camera in self.cameras.items():
@@ -102,6 +115,17 @@ class VideoServer(QObject):
         for direction, camera in self.cameras.items():
             self.resume(direction)
 
+    def camera_connect(self, camera: Camera, num):
+        open_count = 0
+        open_ret = False
+        while not open_ret:
+            camera.cap = cv2.VideoCapture(camera.rtsp_url)
+            open_ret = camera.cap.isOpened()
+            open_count += 1
+            if open_count == num:
+                break
+        return open_ret
+
     # @staticmethod
     def get_frame(self, direction, camera: Camera):
         if camera is None or camera.rtsp_url is None:
@@ -109,19 +133,11 @@ class VideoServer(QObject):
 
         else:
             try:
+                cap_can_release = False
                 print(f"start play:{camera.rtsp_url}")
-                open_ret = 0
-                open_count = 0
-                while not open_ret:
-                    if m_connect_local:
-                        camera.cap = cv2.VideoCapture("111.mp4")
-                    else:
-                        camera.cap = cv2.VideoCapture(camera.rtsp_url)
-                    open_ret = camera.cap.isOpened()
-                    open_count += 1
-                    if open_count == 20:
-                        break
+                open_ret = self.camera_connect(camera, 20)
                 if open_ret:
+                    cap_can_release = True
                     # print(f"start play:{camera.rtsp_url} OK")
                     self.camera_cnt += 1
                     print(f"{camera.rtsp_url} is connected")
@@ -130,19 +146,43 @@ class VideoServer(QObject):
                 else:
                     print(f"start play:{camera.rtsp_url} failed")
                 # camera.cap = cv2.VideoCapture("111.jpg")
+                # camera.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                m_time = time.time()
                 while camera.cap.isOpened() and camera.is_open:
                     # print(f"{direction} 0")
                     # if threading.currentThread().getName()=='Thread-9':
                     #     print("Thread-9")
+                    # print(f"all {time.time() - m_time}")
+                    # m_time = time.time()
                     with self.play_thread_mutex[direction][1]:
                         # print(f"{direction} 1 {self.play_thread_mutex[direction][0]}")
                         while self.play_thread_mutex[direction][0]:
+                            print(f"{direction} is stop")
+                            if camera.is_open:
+                                camera.cap.release()
+                                cap_can_release = False
                             self.play_thread_mutex[direction][1].wait()  # 等待被唤醒
-                            print(f"{direction} is resume")
+                            print(f"{direction} is resumeing")
+                            open_ret = False
+                            if camera.is_open and not self.play_thread_mutex[direction][0]:  # 如果不是因为要终止线程而发出的唤醒信号
+                                open_ret = self.camera_connect(camera, 20)
+                                if open_ret:
+                                    cap_can_release = True
+                                    print(f"{direction} is resume")
+
+                        if not open_ret:
+                            print(f"start play:{camera.rtsp_url} failed")
+                            break
+                    # print(f"mutex {time.time() - m_time}")
+                    # m_time = time.time()
 
                     # fps = cap.get(cv2.CAP_PROP_FPS)
                     ret, frame = camera.cap.read()
+                    # print(f"cap.read {time.time() - m_time}")
+                    # m_time = time.time()
                     if not ret:
+                        if m_connect_local:
+                            camera.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                         print(f"{direction} Failed to retrieve frame")
                         camera.frame_error_count += 1
                         if camera.frame_error_count >= camera.frame_time * 5:
@@ -151,17 +191,21 @@ class VideoServer(QObject):
                             break
                         time.sleep(camera.frame_time / 1000)
                         continue
+                    # print(f"cap.read err {time.time() - m_time}")
+                    # m_time = time.time()
 
-                    print(threading.currentThread().getName(), "Get Frame", camera.rtsp_url)
+                    # print(threading.currentThread().getName(), "Get Frame", camera.rtsp_url)
                     camera.frame = frame
                     camera.frame_error_count = 0
-                    time.sleep(camera.frame_time / 1000)
+                    # print(f"end {time.time() - m_time}")
+                    # cv2.imshow(direction, frame)
+                    # cv2.waitKey(1)
 
                 self.camera_cnt -= 1
-                print(f"{camera.rtsp_url} is disconnected")
                 self.signal_cameraconnect_num.emit(self.camera_cnt)
-                if camera.is_open:
+                if cap_can_release:
                     camera.cap.release()
+                print(f"{camera.rtsp_url} is disconnected")
             except Exception as e:
                 print(f"VideoCapture exception: {e}")
 
@@ -254,9 +298,9 @@ class VideoServer(QObject):
             return
         if not self.work_threads:
             return
-        self.resume_all()
         for key, camera in self.cameras.items():
             camera.is_open = False
+        self.resume_all()
         self.frame_stop_cond.acquire()
         while len(self.work_threads) != 0:
             self.frame_stop_cond.wait()

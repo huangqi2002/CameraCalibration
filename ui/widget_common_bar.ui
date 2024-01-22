@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1100</width>
-    <height>90</height>
+    <height>94</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,6 +16,18 @@
   <layout class="QHBoxLayout" name="horizontalLayout_4">
    <item>
     <widget class="QGroupBox" name="groupBox_2">
+     <property name="minimumSize">
+      <size>
+       <width>350</width>
+       <height>80</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>350</width>
+       <height>80</height>
+      </size>
+     </property>
      <property name="title">
       <string>软件控制</string>
      </property>
@@ -83,6 +95,12 @@
    </item>
    <item>
     <widget class="QGroupBox" name="groupBox_3">
+     <property name="maximumSize">
+      <size>
+       <width>1000</width>
+       <height>16777215</height>
+      </size>
+     </property>
      <property name="title">
       <string>流程/结果</string>
      </property>
@@ -116,7 +134,6 @@
         <property name="font">
          <font>
           <pointsize>24</pointsize>
-          <weight>50</weight>
           <bold>false</bold>
          </font>
         </property>
@@ -133,6 +150,18 @@
    </item>
    <item>
     <widget class="QGroupBox" name="groupBox">
+     <property name="minimumSize">
+      <size>
+       <width>500</width>
+       <height>70</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>350</width>
+       <height>80</height>
+      </size>
+     </property>
      <property name="title">
       <string>设备</string>
      </property>

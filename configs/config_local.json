@@ -1,0 +1,22 @@
+[
+  {
+      "direction": "left",
+      "local_video_path": "m_data/left.mp4"
+    },
+    {
+      "direction": "middle_left",
+      "local_video_path": "m_data/middle_left.mp4"
+    },
+    {
+      "direction": "middle_right",
+      "local_video_path": "m_data/middle_right.mp4"
+    },
+    {
+      "direction": "right",
+      "local_video_path": "m_data/right.mp4"
+    },
+    {
+      "direction": "stitch",
+      "local_video_path": "m_data/stitch.mp4"
+    }
+]

@@ -24,6 +24,9 @@ class InternalCalibrationController(BaseControllerTab):
     work_thread = None
     work_thread_state = False
     screenshot_count = 0
+    position_index = 0
+    device_type = "FG"
+    screenshot_lable_ok = [] # 已成功的截图位置
 
     show_image_signal = pyqtSignal(str, str)
     show_image_fg_signal = pyqtSignal(int, str)
@@ -46,6 +49,7 @@ class InternalCalibrationController(BaseControllerTab):
         self.view.pushButton_set_internal_file_path.clicked.connect(self.on_choose_file)
         self.view.pushButton_start.clicked.connect(self.on_start)
         self.view.pushButton_screenshot.clicked.connect(self.on_screenshot)
+        self.view.position_comboBox.currentIndexChanged.connect(self.on_position_combobox_changed)
 
         self.show_image_signal.connect(self.on_show_image)
         self.show_image_fg_signal.connect(self.on_show_image_fg)
@@ -59,8 +63,11 @@ class InternalCalibrationController(BaseControllerTab):
         # self.bind_label_and_timer("middle_right", self.view.label_video_fg, 270)
         # self.bind_label_and_timer("right", self.view.label_video_fg, 270)
 
+        self.direction_list = ["left", "middle_left", "middle_right", "right"]
+
     # 切换设备类型
     def on_change_device_type(self, device_type):
+        self.device_type = device_type
         if device_type == "FG":
             self.view.set_layout_fg(True)
             self.view.set_layout_rx5(False)
@@ -74,6 +81,7 @@ class InternalCalibrationController(BaseControllerTab):
 
     # 开始标定
     def on_start(self):
+        self.view.set_start_button_enable(False)
         # 获取实时文件夹路径
         self.internal_data_path = self.view.get_choose_file_lineedit()
         if not self.internal_data_path:
@@ -101,22 +109,35 @@ class InternalCalibrationController(BaseControllerTab):
         # 弹出对话框，进制界面操作
         # self.view.show_loading(msg="正在处理内参计算...")
 
+    # 截图相机位置切换槽函数
+    def on_position_combobox_changed(self, index):
+        self.view.set_screenshot_button_text(index * 2)
+        self.position_index = index
+        # 发出显示信号
+        self.show_message_signal.emit(True, self.view.position_type_text[self.position_index] + "相机截图")
+        # 更改显示视频
+        self.start_video_unique(self.direction_list[index], self.view.label_video_fg, 0)
+        # self.start_video_fg_once.emit()
+        # 如果视频还没连接上，使截图按钮不可使
+        # if app_model.video_server.camera_state(self.direction_list[index]):
+        #     self.view.set_screenshot_button_enable(False)
+
     # 截图按钮槽函数
     def on_screenshot(self):
         self.view.set_screenshot_button_enable(False)
         # self.screeshot_buttom_timer.start(3000)
 
         # 获取实时文件夹路径
-
         self.internal_data_path = self.view.get_choose_file_lineedit()
         if not self.internal_data_path:
-            ## 创建目录
+            # 创建目录
             sn = app_model.device_model.sn
             if not sn:
                 self.log.log_err("sn获取失败")
                 return
 
             internal_data_path = os.path.join(app_model.work_path_internal, sn)
+            # 第一次截图之前已经存在，则删除文件夹
             if self.screenshot_count == 0 and os.path.exists(internal_data_path):
                 shutil.rmtree(internal_data_path)
 
@@ -144,7 +165,7 @@ class InternalCalibrationController(BaseControllerTab):
         if direction == "right":
             self.view.set_image_right(filepath)
 
-    # 实时显示图像(fg)
+    # 实时显示截图图像(fg)
     def on_show_image_fg(self, screen_label_count, filepath):
         self.view.set_image_fg(screen_label_count, filepath)
 
@@ -180,7 +201,45 @@ class InternalCalibrationController(BaseControllerTab):
     # 保存帧(fg)
     def save_screenshot(self):
         path_name_list = ["L", "ML", "MR", "R"]
-        direction_list = ["left", "middle_left", "middle_right", "right"]
+        position = self.view.position_type_text[self.position_index]
+        # 使按钮处于失效状态
+        # self.view.set_screenshot_button_enable(False)
+        # 创建截图保存路径，存在则清空并重新创建
+        internal_data_path = os.path.join(self.internal_data_path, path_name_list[self.position_index])
+        if os.path.exists(internal_data_path):
+            shutil.rmtree(internal_data_path)
+        os.makedirs(internal_data_path)
+        filename = f"ispPlayer_{int(time.time())}.jpg"
+        pic_path = os.path.join(internal_data_path, filename)
+        # 读取文件并保存
+        if m_connect_local:
+            frame = cv2.imread("m_data/camera.jpg")
+            if self.position_index == 0 or self.position_index == 3:
+                frame = cv2.resize(frame, (2960, 1664))
+            elif self.position_index == 1 or self.position_index == 2:
+                frame = cv2.resize(frame, (1920, 1080))
+            cv2.imwrite(pic_path, frame)
+        else:
+            ret = app_model.video_server.save_frame(self.direction_list[self.position_index], pic_path)
+            if ret != 0:
+                self.work_thread_state = False
+                self.view.set_screenshot_button_enable(True)
+                return
+        # 将截图在lable中进行显示
+        self.show_image_fg_signal.emit(self.position_index * 2, pic_path)
+        ## 图像分割
+        getBoardPosition(pic_path, (11, 8), 6, internal_data_path, self.position_index)
+        self.work_thread_state = False
+        self.view.set_screenshot_button_enable(True)
+        if path_name_list[self.position_index] not in self.screenshot_lable_ok:
+            self.screenshot_count += 1
+            if self.screenshot_count == 4:
+                self.view.set_start_button_enable(True)
+
+
+    # 自动保存帧(fg)
+    def save_screenshot_auto(self):
+        path_name_list = ["L", "ML", "MR", "R"]
         direction_type = self.screenshot_count // 2
 
         if self.screenshot_count == 0:
@@ -209,7 +268,7 @@ class InternalCalibrationController(BaseControllerTab):
                 frame = cv2.resize(frame, (1920, 1080))
             cv2.imwrite(pic_path, frame)
         else:
-            app_model.video_server.save_frame(direction_list[direction_type], pic_path)
+            app_model.video_server.save_frame(self.direction_list[direction_type], pic_path)
         self.show_image_fg_signal.emit(self.screenshot_count, pic_path)
         self.view.set_screenshot_button_text(self.screenshot_count + 1)
         ## 图像分割
@@ -237,8 +296,8 @@ class InternalCalibrationController(BaseControllerTab):
         if not self.check_device_factory_mode():
             self.work_thread_state = False
             return
-
-        self.save_frame()
+        if self.device_type != "FG":
+            self.save_frame()
 
         self.show_message_signal.emit(True, "开始计算相机内参")
         get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
@@ -253,7 +312,6 @@ class InternalCalibrationController(BaseControllerTab):
         self.show_message_signal.emit(True, "开始计算相机内参")
         get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
                    self.work_thread_finish_failed_signal)
-        print("asd")
 
     # 内参计算成功则上传参数到目标相机
     def on_work_thread_finish_success(self, result):
