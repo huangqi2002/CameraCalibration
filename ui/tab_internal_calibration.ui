@@ -480,20 +480,7 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
         <item>
-         <spacer name="horizontalSpacer">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item>
-         <widget class="QPushButton" name="midleft_pushButton_screenshot">
+         <widget class="QPushButton" name="pushButton_midleft_play">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -511,7 +498,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_screenshot_4">
+         <widget class="QPushButton" name="pushButton_left_play">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -529,7 +516,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_screenshot_2">
+         <widget class="QPushButton" name="pushButton_right_play">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -547,7 +534,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_screenshot_5">
+         <widget class="QPushButton" name="pushButton_midright_play">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -565,14 +552,17 @@
          </widget>
         </item>
         <item>
-         <widget class="QComboBox" name="position_comboBox">
-          <property name="minimumSize">
+         <spacer name="horizontalSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
            <size>
-            <width>100</width>
-            <height>40</height>
+            <width>40</width>
+            <height>20</height>
            </size>
           </property>
-         </widget>
+         </spacer>
         </item>
         <item>
          <widget class="QPushButton" name="pushButton_screenshot">

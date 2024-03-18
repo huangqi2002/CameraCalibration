@@ -13,7 +13,7 @@ def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
     (imgHigh, imgWith) = inImg.shape
     ret = True
     margin = 0.2
-    dstRect = []
+    # dstRect = []
 
     grayHigh = 1080
     grayWith = 1920
@@ -21,7 +21,9 @@ def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
     # factorWith = imgWith / grayWith
     # factorHigh = imgHigh / grayHigh
     gray = cv2.resize(inImg, (int(imgWith / factor), int(imgHigh / factor)))
+    # inImg_clone = inImg.copy()
     m_time = time.time()
+    idI = 0
     while (ret):
         # 寻找并绘制每个棋盘格的角点
         ret, corners = cv2.findChessboardCorners(gray, boardSize, None)
@@ -29,6 +31,7 @@ def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
             # 在图像上绘制第一个棋盘格的角点
             x, y, w, h = cv2.boundingRect(corners)
             gray[y:y + h, x:x + w] = 0
+            black_rect = [int(y * factor), int((y + h) * factor), int(x * factor), int((x + w) * factor)]
             x = x - margin * w
             if x < 0:
                 x = 0
@@ -46,25 +49,34 @@ def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
             rect = (x, y, w, h)
             rectSize = rect[2] * rect[3]
             if rectSize > 1000 and rect[2] < rect[3] * 2 and rect[3] < rect[2] * 2:
-                dstRect.append(rect)
+                # dstRect.append(rect)
+                # 保存图片
+                outImg = np.zeros((imgHigh, imgWith), dtype=uint8)
+                subRect = tuple(int(item * factor) for item in rect)
+                x, y, w, h = subRect
+                outImg[y:y + h, x:x + w] = \
+                    inImg[y:y + h, x:x + w]
+                cv2.imwrite(os.path.join(outPath, "chessboard_" + str(count) + "_" + str(idI) + ".jpg"), outImg)
+                idI += 1
+            inImg[black_rect[0]:black_rect[1], black_rect[2]:black_rect[3]] = 0
         else:
             break
-    m_time = time.time() - m_time
-    for idI in range(len(dstRect)):
-        outImg = np.zeros((imgHigh, imgWith), dtype=uint8)
-        subRect = tuple(int(item * factor) for item in dstRect[idI])
-        x, y, w, h = subRect
-        # x = int(x * factor)
-        # w = int(w * factor)
-        # y = int(y * factor)
-        # h = int(h * factor)
-        # inRectImg = inImg[subRect[1]:subRect[1]+subRect[3], subRect[0]:subRect[0]+subRect[2]]
-        # outRectImg = outImg[subRect[1]:subRect[1]+subRect[3], subRect[0]:subRect[0]+subRect[2]]
-        outImg[y:y + h, x:x + w] = \
-            inImg[y:y + h, x:x + w]
-        # cv2.imshow("asdas", cropped_image)
-        # cv2.waitKey(100)
-        cv2.imwrite(os.path.join(outPath, "chessboard_" + str(count) + "_" + str(idI) + ".jpg"), outImg)
+    # m_time = time.time() - m_time
+    # for idI in range(len(dstRect)):
+    #     outImg = np.zeros((imgHigh, imgWith), dtype=uint8)
+    #     subRect = tuple(int(item * factor) for item in dstRect[idI])
+    #     x, y, w, h = subRect
+    #     # x = int(x * factor)
+    #     # w = int(w * factor)
+    #     # y = int(y * factor)
+    #     # h = int(h * factor)
+    #     # inRectImg = inImg[subRect[1]:subRect[1]+subRect[3], subRect[0]:subRect[0]+subRect[2]]
+    #     # outRectImg = outImg[subRect[1]:subRect[1]+subRect[3], subRect[0]:subRect[0]+subRect[2]]
+    #     outImg[y:y + h, x:x + w] = \
+    #         inImg[y:y + h, x:x + w]
+    #     # cv2.imshow("asdas", cropped_image)
+    #     # cv2.waitKey(100)
+    #     cv2.imwrite(os.path.join(outPath, "chessboard_" + str(count) + "_" + str(idI) + ".jpg"), outImg)
 
 # def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
 #     inImg = cv2.imread(imgPath, cv2.IMREAD_GRAYSCALE)

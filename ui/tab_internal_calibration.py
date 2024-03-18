@@ -24,8 +24,8 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
                 self.screen_lable_list[i].hide()
 
         self.pushbotton_text = ["截图（左）", "截图（左）",
-                                "截图（中左）", "截图（中左）",
-                                "截图（中右）", "截图（中右）",
+                                "截图（最左）", "截图（最左）",
+                                "截图（最右）", "截图（最右）",
                                 "截图（右）", "截图（右）", "标定"]
 
         self.pushButton_screenshot.setStyleSheet("QPushButton:pressed { background-color: #666; }"
@@ -33,16 +33,16 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
 
         self.pushButton_start.setStyleSheet("QPushButton:pressed { background-color: #666; }"
                                             "QPushButton:disabled { background-color: #444; color: #999; }")
+        self.pushButton_play_list = [self.pushButton_left_play, self.pushButton_midleft_play,
+                                     self.pushButton_midright_play, self.pushButton_right_play]
+        self.position_type_text = ["左", "最左", "最右", "右"]
+        for pushButton_play, type_text in zip(self.pushButton_play_list, self.position_type_text):
+            pushButton_play.setStyleSheet("QPushButton{ background-color: #444; color: #999; }"
+                                          "QPushButton:pressed { background-color: #666; }"
+                                          "QPushButton:disabled  { background-color: #FFF; color: #000; }")
 
-        self.position_type_text = ["左", "中左", "中右", "右"]
-        for position_item in self.position_type_text:
-            self.position_comboBox.addItem(position_item)
-        self.position_comboBox.setStyleSheet("{ background-color: #444; color: #999; }")
+            pushButton_play.setText(type_text)
 
-        self.position_comboBox.setStyleSheet("""
-                QComboBox::item { color: red; }
-                QComboBox::item:selected { background-color: yellow; }
-            """)
         self.start_ok = False
         self.update()
 
@@ -106,11 +106,11 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.label_img_right.setPixmap(pixmap)
 
     def set_image_fg(self, screen_label_count, img_path):
-        if not os.path.exists(img_path):
-            return
         if screen_label_count == -1:
             for label in self.screen_lable_list:
                 label.clear()
+            return
+        if not os.path.exists(img_path):
             return
         elif screen_label_count < -1 or screen_label_count > 7:
             print("label_count out of index\n")
@@ -124,6 +124,14 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
 
     def set_screenshot_button_enable(self, enable):
         self.pushButton_screenshot.setEnabled(enable)
+        # self.pushButton_screenshot.setVisible(enable)
+
+    def set_position_type_button_enable(self, index):
+        for i in range(len(self.pushButton_play_list)):
+            if i == index:
+                self.pushButton_play_list[i].setEnabled(False)
+            else:
+                self.pushButton_play_list[i].setEnabled(True)
         # self.pushButton_screenshot.setVisible(enable)
 
     def set_start_button_enable(self, enable):

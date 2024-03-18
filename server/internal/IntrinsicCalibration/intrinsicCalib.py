@@ -18,7 +18,7 @@ parser.add_argument('-fh', '--FRAME_HEIGHT', default=1024, type=int, help='Camer
 parser.add_argument('-bw', '--BORAD_WIDTH', default=7, type=int, help='Chess Board Width (corners number)')
 parser.add_argument('-bh', '--BORAD_HEIGHT', default=6, type=int, help='Chess Board Height (corners number)')
 parser.add_argument('-size', '--SQUARE_SIZE', default=10, type=int, help='Chess Board Square Size (mm)')
-parser.add_argument('-num', '--CALIB_NUMBER', default=5, type=int, help='Least Required Calibration Frame Number')
+parser.add_argument('-num', '--CALIB_NUMBER', default=3, type=int, help='Least Required Calibration Frame Number')
 parser.add_argument('-delay', '--FRAME_DELAY', default=12, type=int, help='Capture Image Time Interval (frame number)')
 parser.add_argument('-subpix', '--SUBPIX_REGION', default=5, type=int, help='Corners Subpix Optimization Region')
 parser.add_argument('-fps', '--CAMERA_FPS', default=20, type=int, help='Camera Frame per Second(FPS)')
@@ -67,8 +67,9 @@ class Fisheye:
     def _update_init(self, board, corners, frame_size):
         data = self.data
         data.type = "FISHEYE"
-        data.camera_mat = np.eye(3, 3)
-        data.dist_coeff = np.zeros((4, 1))
+        data.camera_mat = np.array(
+            [[1062.267560, 0.000000, 1524.057278], [0.000000, 1062.212564, 849.887492], [0.000000, 0.000000, 1.000000]])
+        data.dist_coeff = np.array([[-0.021930], [0.003117], [-0.002101], [0.000108]])
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.fisheye.calibrate(
             board, corners, frame_size, data.camera_mat, data.dist_coeff,
             flags=cv2.fisheye.CALIB_FIX_SKEW | cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC,
@@ -130,8 +131,11 @@ class Normal:
     def _update_init(self, board, corners, frame_size):
         data = self.data
         data.type = "NORMAL"
-        data.camera_mat = np.eye(3, 3)
-        data.dist_coeff = np.zeros((5, 1))
+        data.camera_mat = np.array(
+            [[1345.159861, 0.000000, 973.776987], [0.000000, 1344.626518, 541.407299], [0.000000, 0.000000, 1.000000]])
+        data.dist_coeff = np.array(
+            [[-0.404256259818931], [0.21922420928359876], [-0.00016181802429342013], [-7.126641144546051e-05],
+             [-0.06924570764420157]])
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.calibrateCamera(
             board, corners, frame_size, data.camera_mat, data.dist_coeff,
             criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 1e-6))

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import ctypes
 import threading
 from functools import partial
-
+import ctypes as C
 import cv2
 import time
 from PyQt5.QtCore import pyqtSignal
@@ -15,8 +16,13 @@ from model.camera import Camera
 from utils.m_global import m_connect_local
 from PyQt5.QtCore import QObject
 from multiprocessing import Process
-
+import numpy as np
+from model.app import app_model
 import time
+import os
+
+path_root = os.getcwd()
+path_fisheye_dll = os.path.join(path_root, "lib3rd", "fisheye", "video_fuse.dll")
 
 
 class VideoServer(QObject):
@@ -31,16 +37,68 @@ class VideoServer(QObject):
         self.work_threads = None
         self.play_thread_mutex = None
         self.camera_cnt = 0
+
+        self.four_img_flag = {'middle_left': 0, 'left': 0, 'right': 0, 'middle_right': 0}
+        self.camera_L_inter = app_model.config_internal.get("left_calib")
+        self.camera_ML_inter = app_model.config_internal.get("mid_left_calib")
+        self.camera_MR_inter = app_model.config_internal.get("mid_right_calib")
+        self.camera_R_inter = app_model.config_internal.get("right_calib")
+
+        self.winpos = -1
+
+        self.fisheye_dll = ctypes.CDLL(path_fisheye_dll)
+
+        ex_internal_data_path = app_model.config_ex_internal_path
+        if ex_internal_data_path is None:
+            ex_internal_data_path = os.path.join(os.getcwd(), "configs\\internal\\external_cfg.json")
+        print(ex_internal_data_path)
+        ex_internal_data_path = ex_internal_data_path.encode(encoding="utf-8", errors="ignore")
+        self.fisheye_dll.fisheye_initialize(ex_internal_data_path)
+        app_model.config_ex_internal_path = ex_internal_data_path
         # self.bool_stop_get_frame = False
 
-    # def stop_get_frame(self):
-    #     if not self.camera_cnt:
-    #         return
-    #     self.frame_stop_cond.acquire()
-    #     self.bool_stop_get_frame = True
-    #     while len(self.work_threads) != 0:
-    #         self.frame_stop_cond.wait()
-    #     self.frame_stop_cond.release()
+    # 将YUV420P转成cv::Mat格式
+
+    def fisheye_ctrl(self, winpos):
+        self.fisheye_dll.fisheye_set_winpos(winpos)
+
+    def fisheye_internal_init(self, path):
+        internal_data_path = path.encode(encoding="utf-8", errors="ignore")
+        self.fisheye_dll.fisheye_initialize(internal_data_path)
+
+    def fisheye_external_init(self, path):
+        external_data_path = path.encode(encoding="utf-8", errors="ignore")
+        self.fisheye_dll.fisheye_external_initialize(external_data_path)
+
+    def four_img_stitch(self, frame_1, frame_2, frame_3, frame_4):
+        if frame_1 is None or frame_2 is None or frame_3 is None or frame_4 is None:
+            # print("frame is None")
+            time.sleep(0.01)
+            return
+
+        # cv2.imshow("1", cv2.resize(frame_1, (400, 300)))
+        # cv2.imshow("2", cv2.resize(frame_2, (400, 300)))
+        # cv2.imshow("3", cv2.resize(frame_3, (400, 300)))
+        # cv2.imshow("4", cv2.resize(frame_4, (400, 300)))
+        # cv2.waitKey(0)
+        if m_connect_local:
+            frame_2 = cv2.imread("m_data/hqtest/ex_L.jpg")
+            frame_3 = cv2.imread("m_data/hqtest/ex_R.jpg")
+
+        height = 1200
+        width = 1600
+
+        self.fisheye_dll.fisheye_run_yuv.restype = ctypes.c_char_p
+
+        stitch_image = np.zeros(dtype=np.uint8, shape=(height, width, 3))
+
+        self.fisheye_dll.fisheye_run_yuv(frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                         , frame_3.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                         , frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                         , frame_4.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                         , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
+
+        return stitch_image
 
     def create(self, cameras: dict):
         # self.stop_get_frame()
@@ -59,10 +117,13 @@ class VideoServer(QObject):
             # pause_cond = threading.Condition(threading.Lock())
             self.play_thread_mutex[direction] = [paused, threading.Condition(threading.Lock())]
             camera.is_open = True
-            play_thread = threading.Thread(target=self.get_frame, args=(direction, camera,))
+            if direction == "stitch":
+                play_thread = threading.Thread(target=self.get_frame_stitch, args=(direction, camera,))
+            else:
+                play_thread = threading.Thread(target=self.get_frame, args=(direction, camera,))
             play_thread.start()
             self.work_threads.append(play_thread)
-            print(f"{direction} Thread craete successful")
+            print(f"{direction} Thread create successful")
         self.work_threads_mutex.release()
 
     def get_cameras(self):
@@ -73,6 +134,8 @@ class VideoServer(QObject):
             return -1
         camera = self.cameras.get(direction)
         frame = camera.frame
+        if filename is None:
+            return -1
         if frame is not None:
             cv2.imwrite(filename, frame)
             return 0
@@ -103,9 +166,9 @@ class VideoServer(QObject):
     def resume(self, direction: str = None):
         if not self.play_thread_mutex:
             return
-        if not self.play_thread_mutex[direction][0]:
-            return
         if direction in self.play_thread_mutex:
+            if not self.play_thread_mutex[direction][0]:
+                return
             with self.play_thread_mutex[direction][1]:
                 self.play_thread_mutex[direction][0] = False
                 self.play_thread_mutex[direction][1].notify()  # 唤醒线程
@@ -134,30 +197,22 @@ class VideoServer(QObject):
         else:
             try:
                 cap_can_release = False
-                print(f"start play:{camera.rtsp_url}")
+                print(f"start play:{camera.rtsp_url}\n")
                 open_ret = self.camera_connect(camera, 20)
                 if open_ret:
                     cap_can_release = True
-                    # print(f"start play:{camera.rtsp_url} OK")
                     self.camera_cnt += 1
                     print(f"{camera.rtsp_url} is connected")
                     self.signal_cameraconnect_num.emit(self.camera_cnt)
 
                 else:
                     print(f"start play:{camera.rtsp_url} failed")
-                # camera.cap = cv2.VideoCapture("111.jpg")
-                # camera.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                m_time = time.time()
+
                 while camera.cap.isOpened() and camera.is_open:
-                    # print(f"{direction} 0")
-                    # if threading.currentThread().getName()=='Thread-9':
-                    #     print("Thread-9")
-                    # print(f"all {time.time() - m_time}")
-                    # m_time = time.time()
+                    # 判断线程是否被终止
                     with self.play_thread_mutex[direction][1]:
-                        # print(f"{direction} 1 {self.play_thread_mutex[direction][0]}")
                         while self.play_thread_mutex[direction][0]:
-                            print(f"{direction} is stop")
+                            print(f"{direction} is stop\n")
                             if camera.is_open:
                                 camera.cap.release()
                                 cap_can_release = False
@@ -173,16 +228,8 @@ class VideoServer(QObject):
                         if not open_ret:
                             print(f"start play:{camera.rtsp_url} failed")
                             break
-                    # print(f"mutex {time.time() - m_time}")
-                    # m_time = time.time()
-
-                    # fps = cap.get(cv2.CAP_PROP_FPS)
                     ret, frame = camera.cap.read()
-                    # print(f"cap.read {time.time() - m_time}")
-                    # m_time = time.time()
                     if not ret:
-                        if m_connect_local:
-                            camera.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                         print(f"{direction} Failed to retrieve frame")
                         camera.frame_error_count += 1
                         if camera.frame_error_count >= camera.frame_time * 5:
@@ -191,15 +238,10 @@ class VideoServer(QObject):
                             break
                         time.sleep(camera.frame_time / 1000)
                         continue
-                    # print(f"cap.read err {time.time() - m_time}")
-                    # m_time = time.time()
 
-                    # print(threading.currentThread().getName(), "Get Frame", camera.rtsp_url)
                     camera.frame = frame
                     camera.frame_error_count = 0
-                    # print(f"end {time.time() - m_time}")
-                    # cv2.imshow(direction, frame)
-                    # cv2.waitKey(1)
+                    self.four_img_flag[direction] = 1
 
                 self.camera_cnt -= 1
                 self.signal_cameraconnect_num.emit(self.camera_cnt)
@@ -214,6 +256,64 @@ class VideoServer(QObject):
         if current_thread in self.work_threads:
             self.work_threads.remove(current_thread)
         self.work_threads_mutex.release()
+        if len(self.work_threads) == 0:
+            print(f"finnal")
+            self.frame_stop_cond.acquire()
+            print("self.frame_stop_cond.notify_all()")
+            self.frame_stop_cond.notify_all()
+            self.frame_stop_cond.release()
+
+    def get_frame_stitch(self, direction, camera: Camera):
+        # 输出连接信息
+        print(f"start play:{camera.rtsp_url}\n")
+        self.camera_cnt += 1
+        print(f"{camera.rtsp_url} is connected")
+        self.signal_cameraconnect_num.emit(self.camera_cnt)
+        direction_list = ["middle_left", "left", "right", "middle_right"]
+
+        while camera.is_open:
+
+            # 判断线程是否被终止
+            with self.play_thread_mutex[direction][1]:
+                # print(f"{direction} 1 {self.play_thread_mutex[direction][0]}")
+                while self.play_thread_mutex[direction][0]:
+                    print(f"{direction} fg is stop\n")
+                    self.play_thread_mutex[direction][1].wait()  # 等待被唤醒
+                    print(f"{direction} fg is resumeing")
+
+            # 判断四张待拼接图像是否准备好
+            four_img_ready = True
+            for sig_direction in direction_list:
+                if self.four_img_flag[sig_direction] == 0:
+                    four_img_ready = False
+                    break
+            if four_img_ready is False:
+                # print(f"{direction} fg Failed to get frame")
+                camera.frame_error_count += 1
+                if camera.frame_error_count >= camera.frame_time * 5:
+                    print("Exceeded frame error count, exiting")
+                    camera.frame_error_count = 0
+                    break
+                time.sleep(camera.frame_time / 1000)
+                continue
+
+            frame = self.four_img_stitch(self.cameras[direction_list[0]].frame,
+                                         self.cameras[direction_list[1]].frame,
+                                         self.cameras[direction_list[2]].frame,
+                                         self.cameras[direction_list[3]].frame)
+
+            camera.frame = frame
+            camera.frame_error_count = 0
+
+        print(f"{camera.rtsp_url} is disconnected")
+
+        current_thread = threading.current_thread()
+        self.work_threads_mutex.acquire()
+        if current_thread in self.work_threads:
+            self.work_threads.remove(current_thread)
+        self.work_threads_mutex.release()
+        self.camera_cnt -= 1
+        self.signal_cameraconnect_num.emit(self.camera_cnt)
         if len(self.work_threads) == 0:
             print(f"finnal")
             self.frame_stop_cond.acquire()
@@ -318,3 +418,6 @@ class VideoServer(QObject):
         self.work_threads = None
         self.work_threads_mutex.release()
         self.camera_cnt = 0
+        for direction in self.four_img_flag.keys():
+            self.four_img_flag[direction] = 0
+        self.signal_cameraconnect_num.emit(self.camera_cnt)

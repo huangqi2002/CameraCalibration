@@ -85,7 +85,7 @@ class CommonBarController(BaseController):
     def device_login(self, connect_type):
         # 设备登陆获取设备信息(并设置为工厂模式，设置工厂模式后设备会重启)
         for time_index in range(app_model.login_retry_max_count):
-            self.show_message_signal.emit(True, "设备登录中...")
+            self.show_message_signal.emit(True, f"设备登录中...{time_index}")
             if not server.login(app_model.device_model.ip):
                 time.sleep(1)
                 continue
@@ -101,9 +101,6 @@ class CommonBarController(BaseController):
             app_model.device_model.board_version = body.get("board_version")
             break
 
-        if m_connect_local:
-            if not app_model.device_model.sn:
-                app_model.device_model.sn = "hq"
         if connect_type == 0:
             self.show_message_signal.emit(True, "登录成功")
         elif connect_type == 1:
@@ -118,20 +115,14 @@ class CommonBarController(BaseController):
         self.view.set_connect_device_btn_text("断开连接")
         # 等待设备重启后获取rtsp视频流
 
-        if m_connect_local:
-            video_config_list = app_model.config_model.read_config_file("config_local.json")
-        else:
-            video_config_list = app_model.config_video.get(self.device_type)
+        video_config_list = app_model.config_video.get(self.device_type)
         if not video_config_list:
             self.log.log_err(f"{self.device_type} type not in config_video.json")
             return
 
         for config_item in video_config_list:
             camera = Camera()
-            if m_connect_local:
-                camera.rtsp_url = f"{config_item.get('local_video_path')}"
-            else:
-                camera.rtsp_url = f"{config_item.get('shame')}://{app_model.device_model.ip}:{config_item.get('port')}{config_item.get('url')}"
+            camera.rtsp_url = f"{config_item.get('shame')}://{app_model.device_model.ip}:{config_item.get('port')}{config_item.get('url')}"
             direction = config_item.get("direction")
             app_model.camera_list[direction] = camera
 

@@ -16,7 +16,8 @@ def post(device, url="/request.php", params=None, files=None, data=None, timeout
     proxies = {"http": None, "https": None}
     if not headers:
         headers = HEADERS
-    resp = device.session.post(url=f"{device.url_host}{url}", params=params, files=files, data=data, timeout=timeout, headers=headers, proxies=proxies)
+    resp = device.session.post(url=f"{device.url_host}{url}", params=params, files=files, data=data, timeout=timeout,
+                               headers=headers, proxies=proxies)
     if resp.status_code == 200:
         return resp.content.decode(encoding=encoding, errors="ignore")
     return None
@@ -24,7 +25,8 @@ def post(device, url="/request.php", params=None, files=None, data=None, timeout
 
 def get(device, url, stream=False):
     proxies = {"http": None, "https": None}
-    resp = device.session.get(url=f"{device.url_host}{url}", timeout=50, headers=HEADERS, proxies=proxies, stream=stream)
+    resp = device.session.get(url=f"{device.url_host}{url}", timeout=50, headers=HEADERS, proxies=proxies,
+                              stream=stream)
     if resp.status_code == 200:
         return resp
     return None

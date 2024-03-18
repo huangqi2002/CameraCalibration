@@ -54,6 +54,9 @@ class MainController(BaseController):
 
         app_model.device_model = Device()
         # 读取配置文件，初始化model
+
+        # 初始化内外参矩阵
+        app_model.config_internal = app_model.config_model.read_config_file("fg/inter_cfg.json")
         pass
 
     # 初始化界面控制器
@@ -71,11 +74,13 @@ class MainController(BaseController):
         self.internal_calibration_controller = InternalCalibrationController(self.view.tab_internal_calibration)
         self.internal_calibration_controller.show_message_signal.connect(self.on_show_message)
         self.internal_calibration_controller.reboot_finish_signal.connect(self.on_reboot_finish)
+        self.internal_calibration_controller.signal_reboot_device.connect(self.on_reboot_device)
         self.internal_calibration_controller.start_video_fg_once.connect(self.start_video_fg_inter_once)
         # 外参标定界面
         self.video_calibration_controller = VideoCalibrationController(self.view.tab_video_calibration)
         self.video_calibration_controller.show_message_signal.connect(self.on_show_message)
         self.video_calibration_controller.reboot_finish_signal.connect(self.on_reboot_finish)
+        self.video_calibration_controller.signal_reboot_device.connect(self.on_reboot_device)
         # 拼接结果显示界面
         self.video_result_controller = VideoResultController(self.view.tab_video_result)
         self.video_result_controller.show_message_signal.connect(self.on_show_message)

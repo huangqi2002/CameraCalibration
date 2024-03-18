@@ -131,13 +131,17 @@ class DeviceServer:
     def reboot(self):
         if not self.device:
             return False
+
+        # self.get_device_info()
+
         data_reboot = {
             "type": "reboot_dev",
             "module": "SS_BUS_REQUEST"
         }
+
         data = json.dumps(data_reboot)
         try:
-            post(device=self.device, data=data)
+            reboot_result = post(device=self.device, data=data)
         except Exception:
             pass
         print("reboot:", get_session_id(self.device.session))

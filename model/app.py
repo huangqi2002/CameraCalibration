@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 class App:
-    version_app = "v1.0.0"
+    version_app = "v1.1.0"
 
     work_path_root: str
     work_path_configs: str
@@ -20,6 +20,9 @@ class App:
     login_retry_max_count = 20
     is_connected = False
     show_log_view = False
+
+    # 内参路径
+    config_ex_internal_path = None
 
 
 app_model = App()

@@ -1,12 +1,12 @@
 IsAuto_Version: 1
 camera_count: 2
-chessboard_count: 6
-Min_ChessboardCount_Limit: 6
+chessboard_count: 7
+Min_ChessboardCount_Limit: 7
 IsLongEdgeStitching: 1
 IsRotating180: 1
-base_directory: 'D:\\product\\fgStitch\\fgStitch\\calibration'
-input_filename: 'D:\\product\\fgStitch\\fgStitch\\calibration\\model.cal'
-output_filename: 'D:\\product\\fgStitch\\fgStitch\\calibration\\stitch_model.cal'
+base_directory: 'D:\\VZ\\camera_calibration\\CameraCalibrationTool\\data\\external'
+input_filename: 'D:\\VZ\\camera_calibration\\CameraCalibrationTool\\data\\external\\stitch.cal'
+output_filename: 'D:\\VZ\\camera_calibration\\CameraCalibrationTool\\data\\external\\model.cal'
 camera_info:
   - width: 2960
     height: 1664
@@ -18,7 +18,7 @@ camera_info:
     hfov: 90
 
 calibration_sets:
-  - {set_name: 'avsp_calib_01', cameras: [1, 2], filename_patterns: ['^camera0_01_[0-9]*.jpg$', '^camera1_01_[0-9]*.jpg$'], board_shape: [11, 8], board_scale: 50}
+  - {set_name: 'avsp_calib_01', cameras: [1, 2], filename_patterns: ['^camera0_01_[0-9]*.jpg$', '^camera1_01_[0-9]*.jpg$'], board_shape: [11, 8], board_scale: 25}
   
 mask_info:
   - camera0_01_0:	0 0 0 0

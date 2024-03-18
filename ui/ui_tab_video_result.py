@@ -21,7 +21,7 @@ class Ui_TabVideoResult(object):
         self.groupBox.setObjectName("groupBox")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.groupBox)
         self.verticalLayout.setObjectName("verticalLayout")
-        self.label_video_result = QtWidgets.QLabel(self.groupBox)
+        self.label_video_result = ClickableLabel(self.groupBox)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -41,3 +41,4 @@ class Ui_TabVideoResult(object):
         TabVideoResult.setWindowTitle(_translate("TabVideoResult", "拼接标定结果Tab"))
         self.groupBox.setTitle(_translate("TabVideoResult", "显示"))
         self.label_video_result.setText(_translate("TabVideoResult", "拼接视频"))
+from ui.ClickableLabel import ClickableLabel

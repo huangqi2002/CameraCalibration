@@ -2,11 +2,14 @@
 # -*- coding: utf-8 -*-
 import ctypes
 import os
+import time
+
 import win32api
 from ctypes import *
 
 path_root = os.getcwd()
-path_custom = [os.path.join(path_root, "lib3rd", "win64"), os.path.join(path_root, "server", "external", "lib3rd", "win64")]
+path_custom = [os.path.join(path_root, "lib3rd", "win64"), os.path.join(path_root, "server", "external", "lib3rd", "win64"),
+            os.path.join(path_root, "lib3rd", "fisheye")]
 
 for path in path_custom:
     path = os.path.realpath(path)
@@ -57,7 +60,10 @@ class VzCalibrationSDK:
             print("load VZ_Calibration.dll failed.")
             return -1
         modified_image_path = image_path.replace("\\", "/")
-        print(modified_image_path)
+        print(f"modified_image_path : {modified_image_path}")
+        filenames = os.listdir(modified_image_path)  # 在argparse中修改图片路径
+        for filename in filenames:
+            print(filename)
         modified_image_path = modified_image_path.encode(encoding="utf-8", errors="ignore")
         # image_path = image_path.encode(encoding="utf-8", errors="ignore")
         # print(image_path)

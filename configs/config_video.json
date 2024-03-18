@@ -9,13 +9,13 @@
     {
       "direction": "middle_left",
       "shame": "rtsp",
-      "url": "/mid_left_3_0",
+      "url": "/out_left_sub_3_1",
       "port": 8557
     },
     {
       "direction": "middle_right",
       "shame": "rtsp",
-      "url": "/mid_right_4_0",
+      "url": "/out_right_sub_4_1",
       "port": 8557
     },
     {

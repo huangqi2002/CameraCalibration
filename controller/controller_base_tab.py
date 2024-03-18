@@ -15,6 +15,7 @@ from controller.controller_base import BaseController
 from model.app import app_model
 from model.video import Video
 from server.web.web_server import server
+from utils.global_debug import m_global_debug
 
 
 class BaseControllerTab(BaseController):
@@ -74,10 +75,11 @@ class BaseControllerTab(BaseController):
             if camera is None:
                 continue
             app_model.video_server.resume(key)
-            video.timer = QTimer(self)
-            ret_a = video.timer.timeout.connect(partial(self.update_frame, camera, video))
-            video.timer.start(100)
-            print("Timer is active:", video.timer.isActive())
+            if video.label is not None:
+                video.timer = QTimer(self)
+                ret_a = video.timer.timeout.connect(partial(self.update_frame, camera, video))
+                video.timer.start(100)
+                print("Timer is active:", video.timer.isActive())
             print("start_timer")
 
 
@@ -158,10 +160,7 @@ class BaseControllerTab(BaseController):
                 time.sleep(1)
                 continue
 
-            if m_connect_local:
-                result = 1
-            else:
-                result = self.set_factory_mode()
+            result = self.set_factory_mode()
             if result == 0:
                 need_wait_device_restart = True
             elif result == 1:
@@ -175,10 +174,7 @@ class BaseControllerTab(BaseController):
                     time.sleep(1)
                     continue
 
-                if m_connect_local:
-                    result = 1
-                else:
-                    result = self.set_factory_mode()
+                result = self.set_factory_mode()
                 if result == 1:
                     self.show_message_signal.emit(True, "设置工厂模式成功")
                     return True
@@ -195,8 +191,13 @@ class BaseControllerTab(BaseController):
 
     # 设置工厂模式
     def set_factory_mode(self):
-        factory_mode_result = server.set_factory_mode(mode=1)
-        self.log.log_debug(f"factory_mode_result: {factory_mode_result}")
+        if m_global_debug:
+            factory_mode_result = True
+            self.log.log_debug(f"factory_mode_result: {factory_mode_result}")
+            return 1
+        else:
+            factory_mode_result = server.set_factory_mode(mode=1)
+            self.log.log_debug(f"factory_mode_result: {factory_mode_result}")
         if not factory_mode_result:
             return -1
         try:
@@ -221,7 +222,8 @@ class BaseControllerTab(BaseController):
     # 重启设备
     def reboot_device(self):
         for time_index in range(app_model.login_retry_max_count):
-            if not server.login(app_model.device_model.ip):
+            login_result = server.login(app_model.device_model.ip)
+            if not login_result:
                 time.sleep(1)
                 continue
 

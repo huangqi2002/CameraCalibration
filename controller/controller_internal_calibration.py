@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import json
 import os
 import threading
 from functools import partial
@@ -16,6 +17,7 @@ from server.internal.internal_server import *
 from server.web.web_server import *
 
 from utils.m_global import m_connect_local
+from utils.global_debug import m_global_debug
 
 
 class InternalCalibrationController(BaseControllerTab):
@@ -26,7 +28,7 @@ class InternalCalibrationController(BaseControllerTab):
     screenshot_count = 0
     position_index = 0
     device_type = "FG"
-    screenshot_lable_ok = [] # 已成功的截图位置
+    screenshot_lable_ok = []  # 已成功地截图位置
 
     show_image_signal = pyqtSignal(str, str)
     show_image_fg_signal = pyqtSignal(int, str)
@@ -35,6 +37,7 @@ class InternalCalibrationController(BaseControllerTab):
     show_message_signal = pyqtSignal(bool, str)
     reboot_finish_signal = pyqtSignal(int)
     start_video_fg_once = pyqtSignal()
+    signal_reboot_device = pyqtSignal()
 
     def __init__(self, base_view, base_model=None):
         super().__init__(base_view, base_model)
@@ -49,7 +52,11 @@ class InternalCalibrationController(BaseControllerTab):
         self.view.pushButton_set_internal_file_path.clicked.connect(self.on_choose_file)
         self.view.pushButton_start.clicked.connect(self.on_start)
         self.view.pushButton_screenshot.clicked.connect(self.on_screenshot)
-        self.view.position_comboBox.currentIndexChanged.connect(self.on_position_combobox_changed)
+
+        self.view.pushButton_left_play.clicked.connect(self.position_play)
+        self.view.pushButton_midleft_play.clicked.connect(self.position_play)
+        self.view.pushButton_midright_play.clicked.connect(self.position_play)
+        self.view.pushButton_right_play.clicked.connect(self.position_play)
 
         self.show_image_signal.connect(self.on_show_image)
         self.show_image_fg_signal.connect(self.on_show_image_fg)
@@ -59,6 +66,7 @@ class InternalCalibrationController(BaseControllerTab):
         # 绑定配置文件中的相机与去显示的lable
         # app_model.camera_list
         self.bind_label_and_timer("left", self.view.label_video_fg, 0)  # 270)
+        self.view.set_position_type_button_enable(0)
         # self.bind_label_and_timer("middle_left", self.view.label_video_fg, 270)
         # self.bind_label_and_timer("middle_right", self.view.label_video_fg, 270)
         # self.bind_label_and_timer("right", self.view.label_video_fg, 270)
@@ -74,6 +82,21 @@ class InternalCalibrationController(BaseControllerTab):
         else:
             self.view.set_layout_fg(False)
             self.view.set_layout_rx5(True)
+
+    def create_path_new(self, path):
+        # print(f"Deleted_____ {path}")
+        epoch = 100
+        while os.path.exists(path) and epoch != 0:
+            epoch -= 1
+            try:
+                shutil.rmtree(path)
+                print(f"{epoch} Deleted {path}")
+            except OSError as e:
+                print(f"Error deleting {path}: {e}")
+                time.sleep(0.1)  # 等待一段时间后再尝试
+
+        os.makedirs(path)
+        # print(f"mkdir {path}")
 
     # 选择内参存储文件路径
     def on_choose_file(self):
@@ -109,8 +132,20 @@ class InternalCalibrationController(BaseControllerTab):
         # 弹出对话框，进制界面操作
         # self.view.show_loading(msg="正在处理内参计算...")
 
+    def position_play(self):
+        if self.work_thread_state:
+            return
+        sender_button = self.sender()
+        button_name = sender_button.text()
+        try:
+            index = self.view.position_type_text.index(button_name)
+            self.view.set_position_type_button_enable(index)
+            self.on_position_type_changed(index)
+        except ValueError:
+            print(f"The element {button_name} is not in the list.")
+
     # 截图相机位置切换槽函数
-    def on_position_combobox_changed(self, index):
+    def on_position_type_changed(self, index):
         self.view.set_screenshot_button_text(index * 2)
         self.position_index = index
         # 发出显示信号
@@ -138,11 +173,8 @@ class InternalCalibrationController(BaseControllerTab):
 
             internal_data_path = os.path.join(app_model.work_path_internal, sn)
             # 第一次截图之前已经存在，则删除文件夹
-            if self.screenshot_count == 0 and os.path.exists(internal_data_path):
-                shutil.rmtree(internal_data_path)
-
-            if not os.path.exists(internal_data_path):
-                os.makedirs(internal_data_path)
+            if self.screenshot_count == 0:
+                self.create_path_new(internal_data_path)
             self.internal_data_path = internal_data_path
 
         if not self.internal_data_path:
@@ -206,18 +238,21 @@ class InternalCalibrationController(BaseControllerTab):
         # self.view.set_screenshot_button_enable(False)
         # 创建截图保存路径，存在则清空并重新创建
         internal_data_path = os.path.join(self.internal_data_path, path_name_list[self.position_index])
-        if os.path.exists(internal_data_path):
-            shutil.rmtree(internal_data_path)
-        os.makedirs(internal_data_path)
+        print(f"\n{internal_data_path}\n")
+        self.create_path_new(internal_data_path)
+
         filename = f"ispPlayer_{int(time.time())}.jpg"
         pic_path = os.path.join(internal_data_path, filename)
         # 读取文件并保存
         if m_connect_local:
-            frame = cv2.imread("m_data/camera.jpg")
-            if self.position_index == 0 or self.position_index == 3:
-                frame = cv2.resize(frame, (2960, 1664))
-            elif self.position_index == 1 or self.position_index == 2:
-                frame = cv2.resize(frame, (1920, 1080))
+            if self.position_index == 0:
+                frame = cv2.imread("m_data/hqtest/in_L.jpg")
+            elif self.position_index == 1:
+                frame = cv2.imread("m_data/hqtest/in_ML.jpg")
+            elif self.position_index == 2:
+                frame = cv2.imread("m_data/hqtest/in_MR.jpg")
+            else:
+                frame = cv2.imread("m_data/hqtest/in_R.jpg")
             cv2.imwrite(pic_path, frame)
         else:
             ret = app_model.video_server.save_frame(self.direction_list[self.position_index], pic_path)
@@ -225,17 +260,24 @@ class InternalCalibrationController(BaseControllerTab):
                 self.work_thread_state = False
                 self.view.set_screenshot_button_enable(True)
                 return
+
+        # frame = cv2.imread("m_data/" + path_name_list[self.position_index] + ".jpg")  # hq301test
+        # cv2.imwrite(pic_path, frame)  # hq301test
+
         # 将截图在lable中进行显示
         self.show_image_fg_signal.emit(self.position_index * 2, pic_path)
         ## 图像分割
         getBoardPosition(pic_path, (11, 8), 6, internal_data_path, self.position_index)
-        self.work_thread_state = False
-        self.view.set_screenshot_button_enable(True)
         if path_name_list[self.position_index] not in self.screenshot_lable_ok:
             self.screenshot_count += 1
+            self.screenshot_lable_ok.append(path_name_list[self.position_index])
+            # print(f"\n{self.screenshot_count}\n")
             if self.screenshot_count == 4:
+                self.screenshot_count = 0
+                self.screenshot_lable_ok = []
                 self.view.set_start_button_enable(True)
-
+        self.view.set_screenshot_button_enable(True)
+        self.work_thread_state = False
 
     # 自动保存帧(fg)
     def save_screenshot_auto(self):
@@ -261,12 +303,16 @@ class InternalCalibrationController(BaseControllerTab):
         pic_path = os.path.join(internal_data_path, filename)
         # if True:
         if m_connect_local:
-            frame = cv2.imread("m_data/camera.jpg")
-            if direction_type == 0 or direction_type == 3:
-                frame = cv2.resize(frame, (2960, 1664))
-            elif direction_type == 1 or direction_type == 2:
-                frame = cv2.resize(frame, (1920, 1080))
+            if direction_type == 0:
+                frame = cv2.imread("m_data/hqtest/in_L.jpg")
+            elif direction_type == 1:
+                frame = cv2.imread("m_data/hqtest/in_ML.jpg")
+            elif direction_type == 2:
+                frame = cv2.imread("m_data/hqtest/in_MR.jpg")
+            else:
+                frame = cv2.imread("m_data/hqtest/in_R.jpg")
             cv2.imwrite(pic_path, frame)
+            # app_model.video_server.save_frame(self.direction_list[direction_type], None)
         else:
             app_model.video_server.save_frame(self.direction_list[direction_type], pic_path)
         self.show_image_fg_signal.emit(self.screenshot_count, pic_path)
@@ -276,12 +322,12 @@ class InternalCalibrationController(BaseControllerTab):
         if self.screenshot_count == 1:
             self.start_video_unique("middle_left", self.view.label_video_fg, 0)
             self.start_video_fg_once.emit()
-            self.show_message_signal.emit(True, "中左相机截图")
+            self.show_message_signal.emit(True, "最左相机截图")
 
         elif self.screenshot_count == 3:
             self.start_video_unique("middle_right", self.view.label_video_fg, 0)
             self.start_video_fg_once.emit()
-            self.show_message_signal.emit(True, "中右相机截图")
+            self.show_message_signal.emit(True, "最右相机截图")
 
         elif self.screenshot_count == 5:
             self.start_video_unique("right", self.view.label_video_fg, 0)
@@ -293,9 +339,9 @@ class InternalCalibrationController(BaseControllerTab):
 
     # 进行内参拼接(rx5)
     def get_inter_stitch(self):
-        if not self.check_device_factory_mode():
-            self.work_thread_state = False
-            return
+        # if not self.check_device_factory_mode():
+        #     self.work_thread_state = False
+        #     return
         if self.device_type != "FG":
             self.save_frame()
 
@@ -305,9 +351,9 @@ class InternalCalibrationController(BaseControllerTab):
 
     # 进行内参拼接(fg)
     def get_inter_stitch_fg(self):
-        if not self.check_device_factory_mode():
-            self.work_thread_state = False
-            return
+        # if not self.check_device_factory_mode():
+        #     self.work_thread_state = False
+        #     return
 
         self.show_message_signal.emit(True, "开始计算相机内参")
         get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
@@ -325,10 +371,26 @@ class InternalCalibrationController(BaseControllerTab):
         # self.view.set_internal_result(result)
 
         device_ip = app_model.device_model.ip
-        self.show_message_signal.emit(True, "上传参数结果到相机")
         internal_file = self.save_internal_file(result, self.internal_data_path)
-        self.work_thread = threading.Thread(target=self.upload_file, args=(device_ip, internal_file), daemon=True)
-        self.work_thread.start()
+        ex_result = json.loads(result)
+
+        # 生成漫游拼接所需内参
+        ex_right_calib = ex_result['right_calib']
+        ex_right_calib[4] = ex_right_calib[0] - ex_right_calib[4]
+        ex_right_calib[7] = ex_right_calib[1] - ex_right_calib[7]
+        ex_result['right_calib'] = ex_right_calib
+        ex_result_str = json.dumps(ex_result)
+        ex_internal_file = self.save_internal_file(ex_result_str, os.path.dirname(internal_file), "external_cfg.json")
+        # 应用在设备上
+        app_model.video_server.fisheye_internal_init(ex_internal_file)
+        app_model.config_ex_internal_path = ex_internal_file
+
+        if m_global_debug:
+            self.show_message_signal.emit(True, "参数结果保存成功")
+        else:
+            self.show_message_signal.emit(True, "上传参数结果到相机")
+            self.work_thread = threading.Thread(target=self.upload_file, args=(device_ip, internal_file), daemon=True)
+            self.work_thread.start()
         self.work_thread_state = False
         self.view.set_screenshot_button_enable(True)
         self.show_image_fg_signal.emit(-1, "")
@@ -343,14 +405,14 @@ class InternalCalibrationController(BaseControllerTab):
 
     # 保存内参参数到本地
     @staticmethod
-    def save_internal_file(result=None, file_name="inter_cfg.json", internal_file_path=None):
+    def save_internal_file(result=None, internal_file_path=None, file_name="inter_cfg.json"):
         if not result:
             return
         if internal_file_path is None:
             internal_file_path = os.path.join(os.getcwd(), "result", str(int(time.time())))
         if not os.path.exists(internal_file_path):
             os.makedirs(internal_file_path)
-        internal_file = os.path.join(internal_file_path, "inter_cfg.json")
+        internal_file = os.path.join(internal_file_path, file_name)
         with open(internal_file, "w", encoding="utf-8") as f:
             f.write(result)
         return internal_file
@@ -391,8 +453,10 @@ class InternalCalibrationController(BaseControllerTab):
 
     # 重启设备
     def reset_factory(self):
-        self.reset_factory_mode()
-
+        # self.reset_factory_mode()
+        # self.reboot_device()
+        # self.signal_reboot_device.emit()
         self.work_thread_state = False
-        self.show_message_signal.emit(True, "标定完成，等待设备重启后查看结果")
-        self.reboot_finish_signal.emit(2)
+        # hqtest self.show_message_signal.emit(True, "标定完成，等待设备重启后查看结果")
+        self.show_message_signal.emit(True, "标定完成")
+        # self.reboot_finish_signal.emit(2)

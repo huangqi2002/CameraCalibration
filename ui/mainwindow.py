@@ -26,15 +26,13 @@ class MainWindow(QtWidgets.QMainWindow, BaseView, Ui_MainWindow):
         self.setWindowTitle(f"{self.windowTitle}({app_model.version_app})")
 
         self.widget_common_bar = WidgetCommonBar()
-        if m_connect_local:
-            self.widget_common_bar.lineEdit_device_ip.setText("192.168.1.11")
-        else:
-            self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.235")
-            # self.widget_common_bar.lineEdit_device_ip.setText("192.168.111.10")
-            # self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.131")
-            # self.widget_common_bar.lineEdit_device_ip.setText("192.168.113.101")
-            # self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.110")
-            # self.widget_common_bar.lineEdit_device_ip.setText("192.168.113.102")
+        self.widget_common_bar.lineEdit_device_ip.setText("192.168.109.98")
+        # self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.235")
+        # self.widget_common_bar.lineEdit_device_ip.setText("192.168.111.10")
+        # self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.131")
+        # self.widget_common_bar.lineEdit_device_ip.setText("192.168.113.101")
+        # self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.110")
+        # self.widget_common_bar.lineEdit_device_ip.setText("192.168.113.102")
 
         self.verticalLayout.addWidget(self.widget_common_bar)
 
