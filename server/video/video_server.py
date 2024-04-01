@@ -13,7 +13,7 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel
 
 from model.camera import Camera
-from utils.m_global import m_connect_local
+from utils import m_global
 from PyQt5.QtCore import QObject
 from multiprocessing import Process
 import numpy as np
@@ -54,6 +54,7 @@ class VideoServer(QObject):
         print(ex_internal_data_path)
         ex_internal_data_path = ex_internal_data_path.encode(encoding="utf-8", errors="ignore")
         self.fisheye_dll.fisheye_initialize(ex_internal_data_path)
+        self.fisheye_dll.fisheye_external_initialize(ex_internal_data_path)
         app_model.config_ex_internal_path = ex_internal_data_path
         # self.bool_stop_get_frame = False
 
@@ -70,8 +71,8 @@ class VideoServer(QObject):
         external_data_path = path.encode(encoding="utf-8", errors="ignore")
         self.fisheye_dll.fisheye_external_initialize(external_data_path)
 
-    def four_img_stitch(self, frame_1, frame_2, frame_3, frame_4):
-        if frame_1 is None or frame_2 is None or frame_3 is None or frame_4 is None:
+    def four_img_stitch(self, frame_1, frame_2):
+        if frame_1 is None or frame_2 is None:
             # print("frame is None")
             time.sleep(0.01)
             return
@@ -81,9 +82,9 @@ class VideoServer(QObject):
         # cv2.imshow("3", cv2.resize(frame_3, (400, 300)))
         # cv2.imshow("4", cv2.resize(frame_4, (400, 300)))
         # cv2.waitKey(0)
-        if m_connect_local:
-            frame_2 = cv2.imread("m_data/hqtest/ex_L.jpg")
-            frame_3 = cv2.imread("m_data/hqtest/ex_R.jpg")
+        if m_global.m_connect_local:
+            frame_1 = cv2.imread("m_data/hqtest/ex_L.jpg")
+            frame_2 = cv2.imread("m_data/hqtest/ex_R.jpg")
 
         height = 1200
         width = 1600
@@ -92,12 +93,13 @@ class VideoServer(QObject):
 
         stitch_image = np.zeros(dtype=np.uint8, shape=(height, width, 3))
 
-        self.fisheye_dll.fisheye_run_yuv(frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                         , frame_3.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                         , frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                         , frame_4.ctypes.data_as(C.POINTER(C.c_ubyte))
+        self.fisheye_dll.fisheye_run_yuv(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                         , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
                                          , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
-
+        if m_global.m_connect_local:
+            if int(time.time()) % 3 == 0:
+                cv2.imwrite('output_image.jpg', stitch_image)
+                print("保存成功")
         return stitch_image
 
     def create(self, cameras: dict):
@@ -129,7 +131,7 @@ class VideoServer(QObject):
     def get_cameras(self):
         return self.cameras
 
-    def save_frame(self, direction, filename):
+    def save_frame(self, direction, filename, rotate=False):
         if self.cameras is None:
             return -1
         camera = self.cameras.get(direction)
@@ -137,7 +139,11 @@ class VideoServer(QObject):
         if filename is None:
             return -1
         if frame is not None:
-            cv2.imwrite(filename, frame)
+            if rotate:
+                rotated_frame = cv2.rotate(frame, cv2.ROTATE_180)
+                cv2.imwrite(filename, rotated_frame)
+            else:
+                cv2.imwrite(filename, frame)
             return 0
         return -1
 
@@ -269,7 +275,8 @@ class VideoServer(QObject):
         self.camera_cnt += 1
         print(f"{camera.rtsp_url} is connected")
         self.signal_cameraconnect_num.emit(self.camera_cnt)
-        direction_list = ["middle_left", "left", "right", "middle_right"]
+        # direction_list = ["middle_left", "left", "right", "middle_right"]
+        direction_list = ["left", "right"]
 
         while camera.is_open:
 
@@ -298,10 +305,7 @@ class VideoServer(QObject):
                 continue
 
             frame = self.four_img_stitch(self.cameras[direction_list[0]].frame,
-                                         self.cameras[direction_list[1]].frame,
-                                         self.cameras[direction_list[2]].frame,
-                                         self.cameras[direction_list[3]].frame)
-
+                                         self.cameras[direction_list[1]].frame)
             camera.frame = frame
             camera.frame_error_count = 0
 

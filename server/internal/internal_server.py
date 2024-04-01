@@ -24,7 +24,7 @@ def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize):
     result = calib()  # 开始标定
 
     re_projection_error = None
-    if(result != None):
+    if result is not None:
         print("Camera Matrix is : {}".format(result.camera_mat.tolist()))
         print("Distortion Coefficient is : {}".format(result.dist_coeff.tolist()))
         re_projection_error = np.mean(result.reproj_err)
@@ -68,7 +68,7 @@ def stitch_test(filePath):
     print(f"L ReProjectionError: {reProjectionErrorL}")
 
     mtxML, distortionML, __, __, reProjectionErrorML = runInCalib_2(mode_normal, filePath + "/ML", "chessboard", False,
-                                                                 img_sizeML[0], img_sizeML[1], 11, 8, 50)
+                                                                    img_sizeML[0], img_sizeML[1], 11, 8, 50)
     if mtxML is None or distortionML is None or reProjectionErrorML is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorML >= precision:
@@ -76,7 +76,7 @@ def stitch_test(filePath):
     print(f"ML ReProjectionError: {reProjectionErrorML}")
 
     mtxMR, distortionMR, __, __, reProjectionErrorMR = runInCalib_2(mode_normal, filePath + "/MR", "chessboard", False,
-                                                                 img_sizeMR[0], img_sizeMR[1], 11, 8, 50)
+                                                                    img_sizeMR[0], img_sizeMR[1], 11, 8, 50)
     if mtxMR is None or distortionMR is None or reProjectionErrorMR is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorMR >= precision:
@@ -96,8 +96,10 @@ def stitch_test(filePath):
     mid_right_calib = create_internal(img_sizeMR, mtxMR, distortionMR)
     right_calib = create_internal(img_sizeLR_NEW, mtxR, distortionR)
 
-    result = {"left_calib": left_calib, "mid_left_calib": mid_left_calib, "mid_right_calib": mid_right_calib, "right_calib": right_calib}
+    result = {"left_calib": left_calib, "mid_left_calib": mid_left_calib, "mid_right_calib": mid_right_calib,
+              "right_calib": right_calib}
     return True, json.dumps(result, indent=4, separators=(', ', ': '), ensure_ascii=False)
+
 
 def get_stitch(file_path, success_signal, error_signal):
     try:

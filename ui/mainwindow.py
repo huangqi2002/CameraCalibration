@@ -13,7 +13,7 @@ from ui.tab_video_calibration import TabVideoCalibration
 from ui.tab_video_result import TabVideoResult
 from ui.widget_log_view import WidgetLogView
 
-from utils.m_global import m_connect_local
+from utils import m_global
 
 
 class MainWindow(QtWidgets.QMainWindow, BaseView, Ui_MainWindow):
@@ -26,7 +26,7 @@ class MainWindow(QtWidgets.QMainWindow, BaseView, Ui_MainWindow):
         self.setWindowTitle(f"{self.windowTitle}({app_model.version_app})")
 
         self.widget_common_bar = WidgetCommonBar()
-        self.widget_common_bar.lineEdit_device_ip.setText("192.168.109.98")
+        self.widget_common_bar.lineEdit_device_ip.setText("192.168.1.100")
         # self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.235")
         # self.widget_common_bar.lineEdit_device_ip.setText("192.168.111.10")
         # self.widget_common_bar.lineEdit_device_ip.setText("192.168.12.131")

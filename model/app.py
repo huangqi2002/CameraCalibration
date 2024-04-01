@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 class App:
-    version_app = "v1.1.0"
+    version_app = "v1.1.5"
 
     work_path_root: str
     work_path_configs: str
@@ -11,6 +11,8 @@ class App:
     config_model = None
     config_stream = None
     config_video = None
+
+    config_fg = None
 
     device_model = None
 

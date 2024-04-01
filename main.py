@@ -7,8 +7,7 @@ from PyQt5 import QtWidgets
 
 from ui.mainwindow import MainWindow
 from controller.controller_main import MainController
-from qt_material import apply_stylesheet
-from utils.m_global import m_connect_local
+from utils import m_global
 
 class QSSLoader:
     @staticmethod

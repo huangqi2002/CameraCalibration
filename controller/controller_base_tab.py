@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import json
+import os
 import threading
 import time
 from functools import partial
@@ -9,13 +10,30 @@ import cv2
 from PyQt5.QtCore import QTimer, QObject, pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel
-from utils.m_global import m_connect_local
+from utils import m_global
 
 from controller.controller_base import BaseController
 from model.app import app_model
 from model.video import Video
 from server.web.web_server import server
-from utils.global_debug import m_global_debug
+
+
+def lists_equal(list1, list2):
+    # 检查列表长度是否相等
+    if len(list1) != len(list2):
+        return False
+
+    # 逐一比较列表中的元素
+    for i in range(len(list1)):
+        if isinstance(list1[i], float) and isinstance(list2[i], float):
+            # 如果元素是浮点数，使用 round() 函数四舍五入到指定小数位数
+            if round(list1[i], 6) != round(list2[i], 6):
+                return False
+        else:
+            # 检查其他类型的元素是否相等
+            if list1[i] != list2[i]:
+                return False
+    return True
 
 
 class BaseControllerTab(BaseController):
@@ -191,7 +209,7 @@ class BaseControllerTab(BaseController):
 
     # 设置工厂模式
     def set_factory_mode(self):
-        if m_global_debug:
+        if m_global.m_global_debug:
             factory_mode_result = True
             self.log.log_debug(f"factory_mode_result: {factory_mode_result}")
             return 1
@@ -242,3 +260,30 @@ class BaseControllerTab(BaseController):
             self.reboot_finish_signal.emit(1)
             return
         self.show_message_signal.emit(False, "重新连接设备失败")
+
+
+    def clear_folder(self, folder_path):
+        """
+        清空指定文件夹中的所有内容
+        """
+        try:
+            # 遍历文件夹中的所有文件和子文件夹
+            for filename in os.listdir(folder_path):
+                file_path = os.path.join(folder_path, filename)
+                # 如果是文件则直接删除
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                # 如果是子文件夹则递归清空
+                elif os.path.isdir(file_path):
+                    self.clear_folder(file_path)
+                    os.rmdir(file_path)
+            print(f"文件夹 '{folder_path}' 已成功清空。")
+        except Exception as e:
+            print(f"清空文件夹 '{folder_path}' 时出现错误：{e}")
+
+    def create_path_new(self, path):
+        if os.path.exists(path):
+            self.clear_folder(path)
+        else:
+            os.makedirs(path)
+        # print(f"mkdir {path}")

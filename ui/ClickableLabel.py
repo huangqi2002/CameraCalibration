@@ -27,6 +27,11 @@ class ClickableLabel(QLabel):
             position = 9
         else:
             position = 10
+
+        if Qt.ControlModifier == int(event.modifiers()):
+            position += 2
+
+        print(position)
         self.lable_click_signal.emit(position)
 
 

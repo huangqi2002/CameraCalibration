@@ -62,6 +62,7 @@ class VzCalibrationSDK:
         modified_image_path = image_path.replace("\\", "/")
         print(f"modified_image_path : {modified_image_path}")
         filenames = os.listdir(modified_image_path)  # 在argparse中修改图片路径
+        print(modified_image_path)
         for filename in filenames:
             print(filename)
         modified_image_path = modified_image_path.encode(encoding="utf-8", errors="ignore")

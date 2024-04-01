@@ -3,14 +3,14 @@
 import threading
 import time
 
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal, QTimer
 
 from controller.controller_base import BaseController
 from model.app import app_model
 from server.video.video_server import VideoServer
 from model.camera import Camera
 from server.web.web_server import *
-from utils.m_global import m_connect_local
+from utils import m_global
 
 
 class CommonBarController(BaseController):
@@ -66,10 +66,13 @@ class CommonBarController(BaseController):
 
     # 连接设备按钮槽函数
     def on_connect_device(self):
+        self.view.pushButton_connect_device.setEnabled(False)  # 禁用按钮
+        QTimer.singleShot(1000, lambda: self.view.pushButton_connect_device.setEnabled(True))
         if app_model.is_connected:
             self.disconnect_device()
         else:
             self.connect_device()
+            server.ctrl_osd(0)
 
     # 连接设备
     def connect_device(self, connect_type=0):

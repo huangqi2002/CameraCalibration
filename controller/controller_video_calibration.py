@@ -3,6 +3,7 @@
 # import sys
 import json
 import os
+import shutil
 import threading
 import time
 
@@ -10,14 +11,12 @@ import cv2
 import numpy as np
 from PyQt5.QtCore import pyqtSignal
 
-import shutil
-from controller.controller_base_tab import BaseControllerTab
+from controller.controller_base_tab import BaseControllerTab, lists_equal
 from model.app import app_model
 from server.external.lib3rd.load_lib import sdk
 from server.web.web_server import server
 
-from utils.m_global import m_connect_local
-from utils.global_debug import m_global_debug
+from utils import m_global
 
 import ctypes as C
 
@@ -66,6 +65,16 @@ class VideoCalibrationController(BaseControllerTab):
         # else:
         #     self.view.set_layout_middle_visible(False)
 
+    def remove_dir_sync(directory):
+        for root, dirs, files in os.walk(directory, topdown=False):
+            for name in files:
+                file_path = os.path.join(root, name)
+                os.remove(file_path)
+            for name in dirs:
+                dir_path = os.path.join(root, name)
+                os.rmdir(dir_path)
+        os.rmdir(directory)
+
     # 开始标定槽函数
     def on_start(self):
         # 获取实时文件夹路径
@@ -79,10 +88,7 @@ class VideoCalibrationController(BaseControllerTab):
 
             ## 创建目录
             external_data_path = os.path.join(app_model.work_path_external, sn)
-            if os.path.exists(external_data_path):
-                shutil.rmtree(external_data_path)
-            if not os.path.exists(external_data_path):
-                os.makedirs(external_data_path)
+            self.create_path_new(external_data_path)
             self.external_data_path = external_data_path
 
         if not self.external_data_path:
@@ -113,7 +119,7 @@ class VideoCalibrationController(BaseControllerTab):
         # middle_image_path = os.path.join(self.external_data_path, "camera1.jpg")
         right_image_path = os.path.join(self.external_data_path, "camera1.jpg")
         # if True:
-        if m_connect_local:
+        if m_global.m_connect_local:
             frame = cv2.imread("m_data/hqtest/ex_L.jpg")
             cv2.imwrite(left_image_path, frame)
             # app_model.video_server.save_frame("left", None)
@@ -126,7 +132,7 @@ class VideoCalibrationController(BaseControllerTab):
         # self.show_image_signal.emit("middle", middle_image_path)
 
         # if True:
-        if m_connect_local:
+        if m_global.m_connect_local:
             frame = cv2.imread("m_data/hqtest/ex_R.jpg")
             cv2.imwrite(right_image_path, frame)
             # app_model.video_server.save_frame("right", None)
@@ -137,12 +143,32 @@ class VideoCalibrationController(BaseControllerTab):
 
         ## 复制配置文件
         fg_external_path = os.path.join(app_model.work_path_configs, "fg")
+        # for filename in os.listdir(fg_external_path):
+        #     src_file = os.path.join(fg_external_path, filename)
+        #     dst_file = os.path.join(self.external_data_path, filename)
+        #     cmd = f"copy {src_file} {dst_file}"
+        #     self.log.log_debug(cmd)
+        #     os.system(cmd)
+        fg_external_path = os.path.join(app_model.work_path_configs, "fg")
         for filename in os.listdir(fg_external_path):
             src_file = os.path.join(fg_external_path, filename)
             dst_file = os.path.join(self.external_data_path, filename)
-            cmd = f"copy {src_file} {dst_file}"
-            self.log.log_debug(cmd)
-            os.system(cmd)
+            shutil.copy(src_file, dst_file)
+            # 检查文件复制是否完成
+            while not os.path.exists(dst_file):
+                pass
+            # 这里可以执行下一步操作
+            self.log.log_debug(f"copy {src_file} {dst_file} successfully.")
+
+    def chunked_json_dumps(data, chunk_size=100):
+        """
+        将数据分块序列化为 JSON 字符串
+        """
+        chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+        result_json = ''
+        for chunk in chunks:
+            result_json += json.dumps(chunk, indent=4)
+        return result_json
 
     # 进行平移旋转矩阵的计算
     def get_rtMatrix(self):
@@ -160,6 +186,7 @@ class VideoCalibrationController(BaseControllerTab):
         middle_file = os.path.join(self.external_data_path, camera1_files[middle_file_index])
         print(f"get_rtMatrix img : {middle_file}")
         stitch_cacle_img1 = cv2.imread(middle_file)
+        stitch_cacle_img1 = cv2.rotate(stitch_cacle_img1, cv2.ROTATE_180)
 
         rvecs_1 = np.zeros(dtype=np.float64, shape=(3, 1, 1))
         tvecs_1 = np.zeros(dtype=np.float64, shape=(3, 1, 1))
@@ -173,12 +200,14 @@ class VideoCalibrationController(BaseControllerTab):
                                                        , tvecs_1.ctypes.data_as(C.POINTER(C.c_double))
                                                        , rvecs_2.ctypes.data_as(C.POINTER(C.c_double))
                                                        , tvecs_2.ctypes.data_as(C.POINTER(C.c_double)))
+        # print("fisheye_pnp OK")
         # 将矩阵展平为向量
         rvecs_1_list = rvecs_1.flatten().tolist()
         tvecs_1_list = tvecs_1.flatten().tolist()
         rvecs_2_list = rvecs_2.flatten().tolist()
         tvecs_2_list = tvecs_2.flatten().tolist()
 
+        print(f"{app_model.config_ex_internal_path} is reading")
         ex_result = None
         if app_model.config_ex_internal_path is not None:
             with open(app_model.config_ex_internal_path, encoding="utf-8", errors="ignore") as f:
@@ -187,14 +216,19 @@ class VideoCalibrationController(BaseControllerTab):
         ex_result['tvecs_1'] = tvecs_1_list
         ex_result['rvecs_2'] = rvecs_2_list
         ex_result['tvecs_2'] = tvecs_2_list
-
-        result_json = json.dumps(ex_result)
-
+        print(f"{app_model.config_ex_internal_path} read OK")
+        # print(f" ex_result : {ex_result} ")
+        try:
+            result_json = json.dumps(ex_result, indent=4)
+            print("JSON serialization successful.")
+        except Exception as e:
+            print(f"An error occurred during JSON serialization: {e}")
         self.save_external_file(result_json)
+        print("save_external_file success")
 
     # 进行拼接参数计算
     def get_calibration(self):
-        # if m_global_debug:
+        # if m_global.m_global_debug:
         #     self.work_thread_state = True
         # elif not self.check_device_factory_mode():
         #     self.work_thread_state = False
@@ -204,8 +238,16 @@ class VideoCalibrationController(BaseControllerTab):
 
         self.show_message_signal.emit(True, "数据预处理")
         print("befor rotate_and_resize_images")
-        result_rotate_and_resize_images = sdk.rotate_and_resize_images(self.external_data_path)
-        self.log.log_debug(f"result_rotate_and_resize_images: {result_rotate_and_resize_images}")
+        # result_rotate_and_resize_images = sdk.rotate_and_resize_images(self.external_data_path)
+        # self.log.log_debug(f"result_rotate_and_resize_images: {result_rotate_and_resize_images}")
+        for filename in os.listdir(self.external_data_path):
+            if filename.endswith('.jpg'):
+                input_file = os.path.join(self.external_data_path, filename)
+                image = cv2.imread(input_file)
+                rotated_image = cv2.rotate(image, cv2.ROTATE_180)
+                cv2.imwrite(input_file, rotated_image)
+                print(f"Image {filename} rotated 180 degrees and saved.")
+
 
         self.show_message_signal.emit(True, "读取配置文件")
         yml_path = os.path.join(self.external_data_path, "temp_chessboard.yml")
@@ -269,6 +311,8 @@ class VideoCalibrationController(BaseControllerTab):
     def upload_stitch_fg(self, device_ip, file_path):
         if not device_ip or not file_path:
             return
+
+        print("uploading")
         for filename in os.listdir(file_path):
             if filename.startswith("stitch_lut"):
                 result = self.upload_file(device_ip, os.path.join(file_path, filename),
@@ -276,18 +320,51 @@ class VideoCalibrationController(BaseControllerTab):
                 if not result:
                     return False
 
+        # print("stitch_cfg upload")
         filename = "stitch_cfg.json"
         result = self.upload_file(device_ip, os.path.join(file_path, filename),
                                   f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
         if not result:
             return False
 
+        # print("external_cfg upload")
         filename = "external_cfg.json"
         result = self.upload_file(device_ip, os.path.join(file_path, filename),
                                   f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
-
         if not result:
             return False
+        if not self.check_external_cfg(os.path.join(file_path, filename)):
+            return False
+        return True
+
+    def check_external_cfg(self, local_external_cfg_path):
+        local_external_cfg_name = local_external_cfg_path.replace('\\', '/')
+        with open(local_external_cfg_name, 'r') as file:
+            local_external_cfg = json.load(file)
+
+        if not local_external_cfg:
+            self.show_message_signal.emit(False, "获取设备本地外参文件失败:body")
+            return False
+
+        external_cfg_info = server.get_external_cfg()
+        if not external_cfg_info:
+            self.show_message_signal.emit(False, "获取设备外参文件失败")
+            return False
+        external_cfg = external_cfg_info.get("body")
+        if not external_cfg:
+            self.show_message_signal.emit(False, "获取设备外参文件失败:body")
+            return False
+
+        # 检查字典长度是否相等
+        if len(local_external_cfg) != len(external_cfg):
+            return False
+        # 逐一比较字典中的键和值
+        for key in local_external_cfg.keys():
+            if key not in external_cfg:
+                return False
+            if not lists_equal(local_external_cfg[key], external_cfg[key]):
+                return False
+
         return True
 
     def upload_stitch_fg_img(self, device_ip, filename):
@@ -300,7 +377,8 @@ class VideoCalibrationController(BaseControllerTab):
 
     # 上传拼接参数
     def upload_file(self, device_ip, filepath, upload_path):
-        if m_global_debug:
+        print("uploading_file")
+        if m_global.m_global_debug:
             self.show_message_signal.emit(True, "参数结果保存成功")
             return True
         if not device_ip:
@@ -312,6 +390,7 @@ class VideoCalibrationController(BaseControllerTab):
             return False
 
         file_name = filepath.replace('\\', '/').split("/")[-1]
+        print(f"filename={filepath}, upload_path={upload_path}")
         if server.upload_file(filename=filepath, upload_path=upload_path):
             self.show_message_signal.emit(True, f"{file_name}, 数据上传成功")
             return True
@@ -321,6 +400,7 @@ class VideoCalibrationController(BaseControllerTab):
 
     # 保存外参参数到本地
     def save_external_file(self, result=None, file_name="external_cfg.json", external_file_path=None):
+        print(f"save {file_name}")
         if not result:
             return
         if external_file_path is None:
@@ -328,8 +408,12 @@ class VideoCalibrationController(BaseControllerTab):
         if not os.path.exists(external_file_path):
             os.makedirs(external_file_path)
         external_file = os.path.join(external_file_path, "external_cfg.json")
+        # external_file = external_file.replace('\\', '/')
+        print(f"save {external_file}")
+
         with open(external_file, "w", encoding="utf-8") as f:
             f.write(result)
+        print(f"save {external_file} OK")
         # 应用在设备上
         app_model.video_server.fisheye_external_init(external_file)
         return external_file

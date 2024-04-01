@@ -5,20 +5,17 @@ import os
 import threading
 from functools import partial
 
-import shutil
 import cv2
 from PyQt5.QtCore import pyqtSignal, QTimer
 from PyQt5.QtWidgets import QLabel
 
-from controller.controller_base_tab import BaseControllerTab
+from controller.controller_base_tab import BaseControllerTab, lists_equal
 from model.app import app_model
 from server.internal.boardSplit import getBoardPosition
 from server.internal.internal_server import *
 from server.web.web_server import *
 
-from utils.m_global import m_connect_local
-from utils.global_debug import m_global_debug
-
+from utils import m_global
 
 class InternalCalibrationController(BaseControllerTab):
     video_map = {}
@@ -82,21 +79,6 @@ class InternalCalibrationController(BaseControllerTab):
         else:
             self.view.set_layout_fg(False)
             self.view.set_layout_rx5(True)
-
-    def create_path_new(self, path):
-        # print(f"Deleted_____ {path}")
-        epoch = 100
-        while os.path.exists(path) and epoch != 0:
-            epoch -= 1
-            try:
-                shutil.rmtree(path)
-                print(f"{epoch} Deleted {path}")
-            except OSError as e:
-                print(f"Error deleting {path}: {e}")
-                time.sleep(0.1)  # 等待一段时间后再尝试
-
-        os.makedirs(path)
-        # print(f"mkdir {path}")
 
     # 选择内参存储文件路径
     def on_choose_file(self):
@@ -244,7 +226,7 @@ class InternalCalibrationController(BaseControllerTab):
         filename = f"ispPlayer_{int(time.time())}.jpg"
         pic_path = os.path.join(internal_data_path, filename)
         # 读取文件并保存
-        if m_connect_local:
+        if m_global.m_connect_local:
             if self.position_index == 0:
                 frame = cv2.imread("m_data/hqtest/in_L.jpg")
             elif self.position_index == 1:
@@ -255,7 +237,7 @@ class InternalCalibrationController(BaseControllerTab):
                 frame = cv2.imread("m_data/hqtest/in_R.jpg")
             cv2.imwrite(pic_path, frame)
         else:
-            ret = app_model.video_server.save_frame(self.direction_list[self.position_index], pic_path)
+            ret = app_model.video_server.save_frame(self.direction_list[self.position_index], pic_path, True)
             if ret != 0:
                 self.work_thread_state = False
                 self.view.set_screenshot_button_enable(True)
@@ -273,8 +255,6 @@ class InternalCalibrationController(BaseControllerTab):
             self.screenshot_lable_ok.append(path_name_list[self.position_index])
             # print(f"\n{self.screenshot_count}\n")
             if self.screenshot_count == 4:
-                self.screenshot_count = 0
-                self.screenshot_lable_ok = []
                 self.view.set_start_button_enable(True)
         self.view.set_screenshot_button_enable(True)
         self.work_thread_state = False
@@ -289,11 +269,11 @@ class InternalCalibrationController(BaseControllerTab):
         elif self.screenshot_count == 8:
             self.screeshot_buttom_timer.stop()
             self.view.set_screenshot_button_enable(False)
-            self.screenshot_count = 0
+            # self.screenshot_count = 0
             self.start_video_unique("left", self.view.label_video_fg, 0)
             self.start_video_fg_once.emit()
             self.view.set_screenshot_button_text(self.screenshot_count)
-            self.get_inter_stitch_fg()
+            self.get_inter_stitch()
             return
         internal_data_path = os.path.join(self.internal_data_path, path_name_list[direction_type])
         if not os.path.exists(internal_data_path):
@@ -302,7 +282,7 @@ class InternalCalibrationController(BaseControllerTab):
         ## 截图
         pic_path = os.path.join(internal_data_path, filename)
         # if True:
-        if m_connect_local:
+        if m_global.m_connect_local:
             if direction_type == 0:
                 frame = cv2.imread("m_data/hqtest/in_L.jpg")
             elif direction_type == 1:
@@ -349,15 +329,15 @@ class InternalCalibrationController(BaseControllerTab):
         get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
                    self.work_thread_finish_failed_signal)
 
-    # 进行内参拼接(fg)
-    def get_inter_stitch_fg(self):
-        # if not self.check_device_factory_mode():
-        #     self.work_thread_state = False
-        #     return
-
-        self.show_message_signal.emit(True, "开始计算相机内参")
-        get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
-                   self.work_thread_finish_failed_signal)
+    # # 进行内参拼接(fg)
+    # def get_inter_stitch_fg(self):
+    #     # if not self.check_device_factory_mode():
+    #     #     self.work_thread_state = False
+    #     #     return
+    #
+    #     self.show_message_signal.emit(True, "开始计算相机内参")
+    #     get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
+    #                self.work_thread_finish_failed_signal)
 
     # 内参计算成功则上传参数到目标相机
     def on_work_thread_finish_success(self, result):
@@ -367,25 +347,27 @@ class InternalCalibrationController(BaseControllerTab):
             self.show_message_signal.emit(False, "内参计算失败")
             self.work_thread_state = False
             return
+        self.screenshot_count = 0
+        self.screenshot_lable_ok = []
         self.show_message_signal.emit(True, "内参计算完成")
         # self.view.set_internal_result(result)
 
         device_ip = app_model.device_model.ip
         internal_file = self.save_internal_file(result, self.internal_data_path)
-        ex_result = json.loads(result)
 
         # 生成漫游拼接所需内参
-        ex_right_calib = ex_result['right_calib']
-        ex_right_calib[4] = ex_right_calib[0] - ex_right_calib[4]
-        ex_right_calib[7] = ex_right_calib[1] - ex_right_calib[7]
-        ex_result['right_calib'] = ex_right_calib
-        ex_result_str = json.dumps(ex_result)
-        ex_internal_file = self.save_internal_file(ex_result_str, os.path.dirname(internal_file), "external_cfg.json")
+        # ex_result = json.loads(result)
+        # ex_right_calib = ex_result['right_calib']
+        # ex_right_calib[4] = ex_right_calib[0] - ex_right_calib[4]
+        # ex_right_calib[7] = ex_right_calib[1] - ex_right_calib[7]
+        # ex_result['right_calib'] = ex_right_calib
+        # ex_result_str = json.dumps(ex_result, indent=4)
+        ex_internal_file = self.save_internal_file(result, os.path.dirname(internal_file), "external_cfg.json")
         # 应用在设备上
         app_model.video_server.fisheye_internal_init(ex_internal_file)
         app_model.config_ex_internal_path = ex_internal_file
 
-        if m_global_debug:
+        if m_global.m_global_debug:
             self.show_message_signal.emit(True, "参数结果保存成功")
         else:
             self.show_message_signal.emit(True, "上传参数结果到相机")
@@ -399,9 +381,27 @@ class InternalCalibrationController(BaseControllerTab):
     def on_work_thread_finish_failed(self, error_msg):
         # self.view.close_loading()
         self.show_message_signal.emit(False, f"内参处理" + error_msg)
+        if error_msg.startswith('内参获取失败：L'):
+            self.screenshot_lable_ok.remove('内参获取失败：L')
+            self.view.set_position_type_button_enable(0)
+            self.on_position_type_changed(0)
+        elif error_msg.startswith('内参获取失败：ML'):
+            self.screenshot_lable_ok.remove('ML')
+            self.view.set_position_type_button_enable(1)
+            self.on_position_type_changed(1)
+        elif error_msg.startswith('内参获取失败：MR'):
+            self.screenshot_lable_ok.remove('MR')
+            self.view.set_position_type_button_enable(2)
+            self.on_position_type_changed(2)
+        elif error_msg.startswith('内参获取失败：R'):
+            self.screenshot_lable_ok.remove('R')
+            self.view.set_position_type_button_enable(3)
+            self.on_position_type_changed(3)
+        self.screenshot_count -= 1
+
         self.work_thread_state = False
         self.view.set_screenshot_button_enable(True)
-        self.show_image_fg_signal.emit(-1, "")
+        # self.show_image_fg_signal.emit(-1, "")
 
     # 保存内参参数到本地
     @staticmethod
@@ -445,11 +445,43 @@ class InternalCalibrationController(BaseControllerTab):
             return
 
         if server.upload_file(filename=internal_file, upload_path="/mnt/usr/kvdb/usr_data_kvdb/inter_cfg"):
-            self.show_message_signal.emit(True, "数据上传成功")
-            self.reset_factory()
-        else:
-            self.show_message_signal.emit(False, "数据上传失败")
-            server.logout()
+            if self.check_internal_cfg(internal_file):
+                self.show_message_signal.emit(True, "数据上传成功")
+                self.reset_factory()
+                return
+
+        self.show_message_signal.emit(False, "数据上传失败")
+        server.logout()
+
+    def check_internal_cfg(self, local_internal_cfg_path):
+        local_internal_cfg_name = local_internal_cfg_path.replace('\\', '/')
+        with open(local_internal_cfg_name, 'r') as file:
+            local_internal_cfg = json.load(file)
+
+        if not local_internal_cfg:
+            self.show_message_signal.emit(False, "获取设备本地内参文件失败:body")
+            return False
+
+        internal_cfg_info = server.get_internal_cfg()
+        if not internal_cfg_info:
+            self.show_message_signal.emit(False, "获取设备内参文件失败")
+            return False
+        internal_cfg = internal_cfg_info.get("body")
+        if not internal_cfg:
+            self.show_message_signal.emit(False, "获取设备内参文件失败:body")
+            return False
+
+        # 检查字典长度是否相等
+        if len(local_internal_cfg) != len(internal_cfg):
+            return False
+        # 逐一比较字典中的键和值
+        for key in local_internal_cfg.keys():
+            if key not in internal_cfg:
+                return False
+            if not lists_equal(local_internal_cfg[key], internal_cfg[key]):
+                return False
+
+        return True
 
     # 重启设备
     def reset_factory(self):

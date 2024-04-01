@@ -13,6 +13,7 @@ from controller.controller_internal_calibration import InternalCalibrationContro
 from controller.controller_video_calibration import VideoCalibrationController
 from controller.controller_video_result import VideoResultController
 from controller.controller_log_view import LogViewController
+from utils import m_global
 
 
 class MainController(BaseController):
@@ -32,6 +33,7 @@ class MainController(BaseController):
         self.init_model()  # 读取配置文件，初始化model
         self.init_controller()  # 初始化界面控制器
         self.init_server()  # 初始化视频服务器
+        self.init_parameter() # 初始化参数
 
         # 初始化选择标定拼接Tab以及FG类型
         self.view.switch_tab_index(1)
@@ -51,6 +53,7 @@ class MainController(BaseController):
         app_model.config_model = Config(app_model.work_path_configs)
         app_model.config_stream = app_model.config_model.read_config_file("config_stream.json")
         app_model.config_video = app_model.config_model.read_config_file("config_video.json")
+        app_model.config_fg = app_model.config_model.read_config_file("config_fg.json")
 
         app_model.device_model = Device()
         # 读取配置文件，初始化model
@@ -63,6 +66,8 @@ class MainController(BaseController):
     def init_controller(self):
         # 界面切换
         self.view.signal_tab_changed.connect(self.on_tab_changed)
+        # ip地址
+        self.view.widget_common_bar.lineEdit_device_ip.setText(app_model.config_fg.get("ip"))
         # 界面上方控制栏
         self.common_bar_controller = CommonBarController(self.view.widget_common_bar)
         self.common_bar_controller.signal_show_log_view.connect(self.on_show_log_view)
@@ -125,6 +130,10 @@ class MainController(BaseController):
     # VideoServer按照配置文件中的内容创建多个线程对配置文件中的相机数据进行读取
     def init_server(self):
         app_model.video_server = VideoServer()
+
+    def init_parameter(self):
+        m_global.m_connect_local = app_model.config_fg.get("m_connect_local")
+        m_global.m_global_debug = app_model.config_fg.get("m_global_debug")
 
     # 设置界面上面message栏显示的信息内容
     def on_show_message(self, status, msg):

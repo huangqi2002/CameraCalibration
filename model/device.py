@@ -4,7 +4,7 @@ class Device:
     ip: str = ""
     sn: str = ""
     username = "admin"
-    password = "admin"
+    password = "admin1"
     board_version: int = ""
 
     url_host: str = ""

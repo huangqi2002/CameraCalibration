@@ -192,6 +192,6 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
             proportion = proportion_h
         else:
             proportion = proportion_w
-        pixmap = pixmap.scaled(pixmap.width() / proportion, pixmap.height() / proportion)
+        pixmap = pixmap.scaled(int(pixmap.width() / proportion), int(pixmap.height() / proportion))
         # pixmap.setDevicePixelRatio(proportion)
         return pixmap
