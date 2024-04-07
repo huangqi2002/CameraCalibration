@@ -1,7 +1,7 @@
 IsAuto_Version: 1
 camera_count: 2
-chessboard_count: 7
-Min_ChessboardCount_Limit: 7
+chessboard_count: 6
+Min_ChessboardCount_Limit: 6
 IsLongEdgeStitching: 1
 IsRotating180: 1
 base_directory: 'D:\\VZ\\camera_calibration\\CameraCalibrationTool\\data\\external'

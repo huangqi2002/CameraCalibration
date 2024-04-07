@@ -20,6 +20,7 @@ import numpy as np
 from model.app import app_model
 import time
 import os
+import json
 
 path_root = os.getcwd()
 path_fisheye_dll = os.path.join(path_root, "lib3rd", "fisheye", "video_fuse.dll")
@@ -45,6 +46,7 @@ class VideoServer(QObject):
         self.camera_R_inter = app_model.config_internal.get("right_calib")
 
         self.winpos = -1
+        self.depth = 1.0
 
         self.fisheye_dll = ctypes.CDLL(path_fisheye_dll)
 
@@ -59,9 +61,23 @@ class VideoServer(QObject):
         # self.bool_stop_get_frame = False
 
     # 将YUV420P转成cv::Mat格式
+    def set_external(self, external_cfg):
+        print(external_cfg)
+        external_cfg_str = json.dumps(external_cfg)
+        external_cfg_str = external_cfg_str.encode(encoding="utf-8", errors="ignore")
+        self.fisheye_dll.fisheye_init_network(external_cfg_str)
 
     def fisheye_ctrl(self, winpos):
         self.fisheye_dll.fisheye_set_winpos(winpos)
+
+    def fisheye_depth_set(self, depth):
+        self.depth = depth
+
+        move = 1.0
+        if depth == 10:
+            move = 0.0
+        self.fisheye_dll.set_deep_tvec_multiple(ctypes.c_double(depth), ctypes.c_double(move))
+        self.fisheye_dll.fisheye_set_winpos(20)
 
     def fisheye_internal_init(self, path):
         internal_data_path = path.encode(encoding="utf-8", errors="ignore")
@@ -96,7 +112,7 @@ class VideoServer(QObject):
         self.fisheye_dll.fisheye_run_yuv(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
                                          , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
                                          , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
-        if m_global.m_connect_local:
+        if not m_global.m_connect_local:
             if int(time.time()) % 3 == 0:
                 cv2.imwrite('output_image.jpg', stitch_image)
                 print("保存成功")

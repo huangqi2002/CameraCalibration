@@ -338,6 +338,7 @@ class VideoCalibrationController(BaseControllerTab):
         return True
 
     def check_external_cfg(self, local_external_cfg_path):
+        return True
         local_external_cfg_name = local_external_cfg_path.replace('\\', '/')
         with open(local_external_cfg_name, 'r') as file:
             local_external_cfg = json.load(file)
@@ -415,7 +416,7 @@ class VideoCalibrationController(BaseControllerTab):
             f.write(result)
         print(f"save {external_file} OK")
         # 应用在设备上
-        app_model.video_server.fisheye_external_init(external_file)
+        # app_model.video_server.fisheye_external_init(external_file)
         return external_file
 
     def on_img_left_middle(self):

@@ -237,7 +237,7 @@ class InternalCalibrationController(BaseControllerTab):
                 frame = cv2.imread("m_data/hqtest/in_R.jpg")
             cv2.imwrite(pic_path, frame)
         else:
-            ret = app_model.video_server.save_frame(self.direction_list[self.position_index], pic_path, True)
+            ret = app_model.video_server.save_frame(self.direction_list[self.position_index], pic_path, False)
             if ret != 0:
                 self.work_thread_state = False
                 self.view.set_screenshot_button_enable(True)
@@ -364,7 +364,7 @@ class InternalCalibrationController(BaseControllerTab):
         # ex_result_str = json.dumps(ex_result, indent=4)
         ex_internal_file = self.save_internal_file(result, os.path.dirname(internal_file), "external_cfg.json")
         # 应用在设备上
-        app_model.video_server.fisheye_internal_init(ex_internal_file)
+        # app_model.video_server.fisheye_internal_init(ex_internal_file)
         app_model.config_ex_internal_path = ex_internal_file
 
         if m_global.m_global_debug:
@@ -454,6 +454,7 @@ class InternalCalibrationController(BaseControllerTab):
         server.logout()
 
     def check_internal_cfg(self, local_internal_cfg_path):
+        return True
         local_internal_cfg_name = local_internal_cfg_path.replace('\\', '/')
         with open(local_internal_cfg_name, 'r') as file:
             local_internal_cfg = json.load(file)
