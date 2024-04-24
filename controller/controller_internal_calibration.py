@@ -7,6 +7,7 @@ from functools import partial
 
 import cv2
 from PyQt5.QtCore import pyqtSignal, QTimer
+from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtWidgets import QLabel
 
 from controller.controller_base_tab import BaseControllerTab, lists_equal
@@ -17,11 +18,14 @@ from server.web.web_server import *
 
 from utils import m_global
 
+
 class InternalCalibrationController(BaseControllerTab):
     video_map = {}
     internal_data_path = None
+    internal_data = None
     work_thread = None
     work_thread_state = False
+    # undistorted_bool = False
     screenshot_count = 0
     position_index = 0
     device_type = "FG"
@@ -45,10 +49,14 @@ class InternalCalibrationController(BaseControllerTab):
 
         self.tab_index = 0
 
+        # 控件初始化
+        self.view.undistorted_checkBox.setChecked(False)
+
         # 链接UI事件
         self.view.pushButton_set_internal_file_path.clicked.connect(self.on_choose_file)
         self.view.pushButton_start.clicked.connect(self.on_start)
         self.view.pushButton_screenshot.clicked.connect(self.on_screenshot)
+        self.view.undistorted_checkBox.stateChanged.connect(self.undistorted)
 
         self.view.pushButton_left_play.clicked.connect(self.position_play)
         self.view.pushButton_midleft_play.clicked.connect(self.position_play)
@@ -167,8 +175,54 @@ class InternalCalibrationController(BaseControllerTab):
 
         self.work_thread_state = True
         # 创建线程执行任务
+        self.view.undistorted_checkBox.setChecked(False)
         self.work_thread = threading.Thread(target=self.save_screenshot, daemon=True)
         self.work_thread.start()
+
+    # 去畸变按钮槽函数
+    def undistorted(self, state):
+        app_model.video_server.set_undistorted_bool(state)
+
+    def update_frame(self, camera, video):
+        # print(f" update_frame in : {self.undistorted_bool}")
+        # print(f"{camera.rtsp_url} update_frame\n")
+        if camera is None or camera.frame is None:
+            # self.log.log_err(f"Tab({self.tab_index}), Invalid camera or frame")
+            return
+        frame = camera.frame
+
+        if video is None or video.label is None:
+            self.log.log_err(f"Tab({self.tab_index}), Invalid video or label")
+            return
+        label = video.label
+
+        frame_rotated = None
+        rotate = video.rotate
+        label_size = label.size()
+        if rotate == 0:
+            frame_resized = cv2.resize(frame, (label_size.width(), label_size.height() - 1))
+            frame_rotated = frame_resized
+        else:
+            frame_resized = cv2.resize(frame, (label_size.height() - 1, label_size.width()))
+            # print("update_frame, frame_resized", frame_resized.shape)
+            if rotate == 90:
+                frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_90_CLOCKWISE)
+            elif rotate == 180:
+                frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_180)
+            elif rotate == 270:
+                frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+        if frame_rotated is None:
+            return
+        frame_rgb = cv2.cvtColor(frame_rotated, cv2.COLOR_BGR2RGB)
+        h, w, ch = frame_rgb.shape
+        bytes_per_line = ch * w
+        q_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(q_image)
+        # new_pixmap = pixmap.scaled(2960, 1664)
+        # print(f"before label.size:{label.size()}")
+        label.setPixmap(pixmap)
+        # print(f"after label.size:{label.size()}")
 
     # 实时显示图像
     def on_show_image(self, direction, filepath):
@@ -208,9 +262,9 @@ class InternalCalibrationController(BaseControllerTab):
         app_model.video_server.save_frame("right", right_pic_path)
         self.show_image_signal.emit("right", right_pic_path)
         ## 图像分割
-        getBoardPosition(left_pic_path, (11, 8), 6, internal_data_path_l)
-        getBoardPosition(middle_pic_path, (11, 8), 6, internal_data_path_m)
-        getBoardPosition(right_pic_path, (11, 8), 6, internal_data_path_r)
+        getBoardPosition(left_pic_path, (11, 8), internal_data_path_l)
+        getBoardPosition(middle_pic_path, (11, 8), internal_data_path_m)
+        getBoardPosition(right_pic_path, (11, 8), internal_data_path_r)
 
     # 保存帧(fg)
     def save_screenshot(self):
@@ -249,7 +303,7 @@ class InternalCalibrationController(BaseControllerTab):
         # 将截图在lable中进行显示
         self.show_image_fg_signal.emit(self.position_index * 2, pic_path)
         ## 图像分割
-        getBoardPosition(pic_path, (11, 8), 6, internal_data_path, self.position_index)
+        getBoardPosition(pic_path, (11, 8), internal_data_path)
         if path_name_list[self.position_index] not in self.screenshot_lable_ok:
             self.screenshot_count += 1
             self.screenshot_lable_ok.append(path_name_list[self.position_index])
@@ -298,7 +352,7 @@ class InternalCalibrationController(BaseControllerTab):
         self.show_image_fg_signal.emit(self.screenshot_count, pic_path)
         self.view.set_screenshot_button_text(self.screenshot_count + 1)
         ## 图像分割
-        getBoardPosition(pic_path, (11, 8), 6, internal_data_path, self.screenshot_count % 2)
+        getBoardPosition(pic_path, (11, 8), internal_data_path, self.screenshot_count % 2)
         if self.screenshot_count == 1:
             self.start_video_unique("middle_left", self.view.label_video_fg, 0)
             self.start_video_fg_once.emit()
@@ -317,7 +371,7 @@ class InternalCalibrationController(BaseControllerTab):
         self.view.set_screenshot_button_enable(True)
         self.screenshot_count += 1
 
-    # 进行内参拼接(rx5)
+    # 进行内参拼接
     def get_inter_stitch(self):
         # if not self.check_device_factory_mode():
         #     self.work_thread_state = False
@@ -350,6 +404,7 @@ class InternalCalibrationController(BaseControllerTab):
         self.screenshot_count = 0
         self.screenshot_lable_ok = []
         self.show_message_signal.emit(True, "内参计算完成")
+        self.internal_data = result
         # self.view.set_internal_result(result)
 
         device_ip = app_model.device_model.ip
@@ -364,15 +419,16 @@ class InternalCalibrationController(BaseControllerTab):
         # ex_result_str = json.dumps(ex_result, indent=4)
         ex_internal_file = self.save_internal_file(result, os.path.dirname(internal_file), "external_cfg.json")
         # 应用在设备上
-        # app_model.video_server.fisheye_internal_init(ex_internal_file)
+        app_model.video_server.fisheye_internal_init(ex_internal_file)
         app_model.config_ex_internal_path = ex_internal_file
 
-        if m_global.m_global_debug:
-            self.show_message_signal.emit(True, "参数结果保存成功")
-        else:
-            self.show_message_signal.emit(True, "上传参数结果到相机")
-            self.work_thread = threading.Thread(target=self.upload_file, args=(device_ip, internal_file), daemon=True)
-            self.work_thread.start()
+        # if m_global.m_global_debug:
+        #     self.show_message_signal.emit(True, "参数结果保存成功")
+        # else:
+        self.show_message_signal.emit(True, "上传参数结果到相机")
+        self.work_thread = threading.Thread(target=self.upload_file, args=(device_ip, internal_file), daemon=True)
+        self.work_thread.start()
+
         self.work_thread_state = False
         self.view.set_screenshot_button_enable(True)
         self.show_image_fg_signal.emit(-1, "")

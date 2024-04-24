@@ -70,7 +70,7 @@ class Ui_WidgetCommonBar(object):
         self.horizontalLayout_4.addWidget(self.groupBox_3)
         self.groupBox = QtWidgets.QGroupBox(WidgetCommonBar)
         self.groupBox.setMinimumSize(QtCore.QSize(500, 70))
-        self.groupBox.setMaximumSize(QtCore.QSize(350, 80))
+        self.groupBox.setMaximumSize(QtCore.QSize(500, 70))
         self.groupBox.setObjectName("groupBox")
         self.horizontalLayout = QtWidgets.QHBoxLayout(self.groupBox)
         self.horizontalLayout.setObjectName("horizontalLayout")

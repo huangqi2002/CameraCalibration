@@ -21,6 +21,7 @@ from model.app import app_model
 import time
 import os
 import json
+from server.aruco_vz import aruco_tool
 
 path_root = os.getcwd()
 path_fisheye_dll = os.path.join(path_root, "lib3rd", "fisheye", "video_fuse.dll")
@@ -38,15 +39,20 @@ class VideoServer(QObject):
         self.work_threads = None
         self.play_thread_mutex = None
         self.camera_cnt = 0
+        self.undistorted_bool = False  # 内参展示界面是否去畸变
 
         self.four_img_flag = {'middle_left': 0, 'left': 0, 'right': 0, 'middle_right': 0}
-        self.camera_L_inter = app_model.config_internal.get("left_calib")
-        self.camera_ML_inter = app_model.config_internal.get("mid_left_calib")
-        self.camera_MR_inter = app_model.config_internal.get("mid_right_calib")
-        self.camera_R_inter = app_model.config_internal.get("right_calib")
+        # self.camera_L_inter = app_model.config_internal.get("left_calib")
+        # self.camera_ML_inter = app_model.config_internal.get("mid_left_calib")
+        # self.camera_MR_inter = app_model.config_internal.get("mid_right_calib")
+        # self.camera_R_inter = app_model.config_internal.get("right_calib")
 
         self.winpos = -1
         self.depth = 1.0
+        self.tab_index = None
+        self.mapx = {}
+        self.mapy = {}
+        self.internal_data = None
 
         self.fisheye_dll = ctypes.CDLL(path_fisheye_dll)
 
@@ -54,11 +60,14 @@ class VideoServer(QObject):
         if ex_internal_data_path is None:
             ex_internal_data_path = os.path.join(os.getcwd(), "configs\\internal\\external_cfg.json")
         print(ex_internal_data_path)
-        ex_internal_data_path = ex_internal_data_path.encode(encoding="utf-8", errors="ignore")
-        self.fisheye_dll.fisheye_initialize(ex_internal_data_path)
-        self.fisheye_dll.fisheye_external_initialize(ex_internal_data_path)
+        # ex_internal_data_path = ex_internal_data_path.encode(encoding="utf-8", errors="ignore")
+        self.fisheye_internal_init(ex_internal_data_path)
+        self.fisheye_external_init(ex_internal_data_path)
         app_model.config_ex_internal_path = ex_internal_data_path
         # self.bool_stop_get_frame = False
+
+        aruco_tool.set_aruco_dictionary(5, 250)
+        aruco_tool.set_charuco_board((12, 9))
 
     # 将YUV420P转成cv::Mat格式
     def set_external(self, external_cfg):
@@ -69,6 +78,9 @@ class VideoServer(QObject):
 
     def fisheye_ctrl(self, winpos):
         self.fisheye_dll.fisheye_set_winpos(winpos)
+
+    def set_undistorted_bool(self, var):
+        self.undistorted_bool = var
 
     def fisheye_depth_set(self, depth):
         self.depth = depth
@@ -82,6 +94,10 @@ class VideoServer(QObject):
     def fisheye_internal_init(self, path):
         internal_data_path = path.encode(encoding="utf-8", errors="ignore")
         self.fisheye_dll.fisheye_initialize(internal_data_path)
+        with open(path, encoding="utf-8", errors="ignore") as f:
+            self.internal_data = json.load(f)
+        self.mapx = {}
+        self.mapy = {}
 
     def fisheye_external_init(self, path):
         external_data_path = path.encode(encoding="utf-8", errors="ignore")
@@ -112,11 +128,37 @@ class VideoServer(QObject):
         self.fisheye_dll.fisheye_run_yuv(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
                                          , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
                                          , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
-        if not m_global.m_connect_local:
+        if m_global.m_global_debug:
             if int(time.time()) % 3 == 0:
                 cv2.imwrite('output_image.jpg', stitch_image)
                 print("保存成功")
+        #
+        # stitch_image = cv2.rotate(stitch_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        # stitch_image = self.stitch_crop(stitch_image)
+
         return stitch_image
+
+    def stitch_crop(self, image):
+        # 将图像转换为灰度
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        # 二值化图像
+        ret, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+        # 寻找轮廓
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # 找到最大的轮廓
+        max_contour = max(contours, key=cv2.contourArea)
+
+        # 计算最小边界框
+        rect = cv2.minAreaRect(max_contour)
+        box = cv2.boxPoints(rect)
+        box = np.int0(box)
+        # 提取最小边界框的坐标
+        x, y, w, h = cv2.boundingRect(box)
+        # print(x, y, w, h)
+        # 截取图像
+        cropped_image = image[y:y + h, x:x + w]
+        return cropped_image
 
     def create(self, cameras: dict):
         # self.stop_get_frame()
@@ -261,6 +303,13 @@ class VideoServer(QObject):
                         time.sleep(camera.frame_time / 1000)
                         continue
 
+                    # 判断是否需要去畸变
+                    if not self.tab_index:
+                        objPoints, imgPoints = aruco_tool.charuco_detect(frame, True)
+                        print(f"objPoints : {objPoints}\nimgPoints : {imgPoints}")
+                        if self.undistorted_bool:
+                            frame = self.undistorted_frame(frame, direction)
+
                     camera.frame = frame
                     camera.frame_error_count = 0
                     self.four_img_flag[direction] = 1
@@ -284,6 +333,54 @@ class VideoServer(QObject):
             print("self.frame_stop_cond.notify_all()")
             self.frame_stop_cond.notify_all()
             self.frame_stop_cond.release()
+
+    def undistorted_frame(self, frame, direction):
+        direction_str = direction.replace("middle", "mid")
+        if self.internal_data is None:
+            return frame
+        # ret_frame = frame
+        # direct_dict = {"left": "L", "right": "R", "mid_left": "ML", "mid_right": "MR"}
+        # frame = cv2.imread("m_data/hqtest/bf_1/in_" + direct_dict[direction_str] + ".jpg")
+        if direction_str not in self.mapx:
+
+            camera_inter = self.internal_data.get(direction_str + "_calib")
+            # 内参和畸变参数
+            intrinsics = camera_inter[2:11]
+            dist_coeffs = np.array(camera_inter[11:])
+            # 获取图像尺寸
+            h, w = frame.shape[:2]
+            # 相机矩阵
+            camera_matrix = np.reshape(intrinsics[:9], (3, 3))
+
+            if direction_str == "left" or direction_str == "right":
+                # 生成图像尺寸
+                new_size = (w * 2, h * 2)
+                # 生成相机矩阵
+                new_camera_matrix = np.multiply(camera_matrix, [[1, 1, 2], [1, 1, 2], [1, 1, 1]])
+
+                # 畸变校正
+                self.mapx[direction_str], self.mapy[direction_str] = cv2.fisheye.initUndistortRectifyMap(camera_matrix,
+                                                                                                         dist_coeffs,
+                                                                                                         np.eye(3),
+                                                                                                         new_camera_matrix,
+                                                                                                         new_size,
+                                                                                                         cv2.CV_32FC1)
+
+            else:
+                # 生成图像尺寸
+                new_size = (w, h)
+                # 生成相机矩阵
+                new_camera_matrix = np.multiply(camera_matrix, [[1, 1, 1], [1, 1, 1], [1, 1, 1]])
+
+                # 畸变校正
+                self.mapx[direction_str], self.mapy[direction_str] = cv2.initUndistortRectifyMap(camera_matrix,
+                                                                                                 dist_coeffs,
+                                                                                                 np.eye(3),
+                                                                                                 new_camera_matrix,
+                                                                                                 new_size,
+                                                                                                 cv2.CV_32FC1)
+        ret_frame = cv2.remap(frame, self.mapx[direction_str], self.mapy[direction_str], cv2.INTER_LINEAR)
+        return ret_frame
 
     def get_frame_stitch(self, direction, camera: Camera):
         # 输出连接信息

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QSizePolicy
 
 from ui.ui_base import BaseView
 from ui.ui_tab_video_calibration import Ui_TabVideoCalibration
@@ -12,6 +13,10 @@ class TabVideoCalibration(BaseView, Ui_TabVideoCalibration):
         self.setupUi(self)
         self.pushButton_img_left_middle.setVisible(False)
         self.pushButton_img_middle_right.setVisible(False)
+        # 防止界面大小不可调节
+        self.label_video_left.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.label_video_middle.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.label_video_right.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
     def set_video_left(self, video_data):
         self.label_video_left.setPixmap(video_data)

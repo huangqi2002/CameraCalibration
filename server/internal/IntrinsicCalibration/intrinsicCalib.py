@@ -2,6 +2,8 @@ import argparse
 import cv2
 import numpy as np
 import os
+# from server.external.lib3rd.load_lib import chess_board_sdk
+
 
 parser = argparse.ArgumentParser(description="Camera Intrinsic Calibration")
 parser.add_argument('-input', '--INPUT_TYPE', default='camera', type=str, help='Input Source: camera/video/image')
@@ -15,8 +17,10 @@ parser.add_argument('-image', '--IMAGE_FILE', default='img_raw', type=str,
 parser.add_argument('-mode', '--SELECT_MODE', default='auto', type=str, help='Image Select Mode: auto/manual')
 parser.add_argument('-fw', '--FRAME_WIDTH', default=1280, type=int, help='Camera Frame Width')
 parser.add_argument('-fh', '--FRAME_HEIGHT', default=1024, type=int, help='Camera Frame Height')
-parser.add_argument('-bw', '--BORAD_WIDTH', default=7, type=int, help='Chess Board Width (corners number)')
-parser.add_argument('-bh', '--BORAD_HEIGHT', default=6, type=int, help='Chess Board Height (corners number)')
+parser.add_argument('-bw', '--BOARD_WIDTH', default=7, type=int, help='Chess Board Width (corners number)')
+parser.add_argument('-bh', '--BOARD_HEIGHT', default=6, type=int, help='Chess Board Height (corners number)')
+parser.add_argument('-b_auto', '--BOARD_AUTO', default=False, type=bool,
+                    help='Chess Board Size Self-Adaptation(corners ''number)')
 parser.add_argument('-size', '--SQUARE_SIZE', default=10, type=int, help='Chess Board Square Size (mm)')
 parser.add_argument('-num', '--CALIB_NUMBER', default=3, type=int, help='Least Required Calibration Frame Number')
 parser.add_argument('-delay', '--FRAME_DELAY', default=12, type=int, help='Capture Image Time Interval (frame number)')
@@ -50,17 +54,18 @@ class Fisheye:
     def __init__(self):
         self.data = CalibData()
         self.inited = False
-        self.BOARD = np.array([[(j * args.SQUARE_SIZE, i * args.SQUARE_SIZE, 0.)]
-                               for i in range(args.BORAD_HEIGHT)
-                               for j in range(args.BORAD_WIDTH)], dtype=np.float32)
+        # self.BOARD = np.array([[(j * args.SQUARE_SIZE, i * args.SQUARE_SIZE, 0.)]
+        #                        for i in range(args.BOARD_HEIGHT)
+        #                        for j in range(args.BOARD_WIDTH)], dtype=np.float32)
+        self.board = []
 
     def update(self, corners, frame_size):
-        board = [self.BOARD] * len(corners)
+        # board = [self.BOARD] * len(corners)
         if not self.inited:
-            self._update_init(board, corners, frame_size)
+            self._update_init(self.board, corners, frame_size)
             self.inited = True
         else:
-            self._update_refine(board, corners, frame_size)
+            self._update_refine(self.board, corners, frame_size)
         self._calc_reproj_err(corners)
         self._get_undistort_maps()
 
@@ -89,7 +94,7 @@ class Fisheye:
         data = self.data
         data.reproj_err = []
         for i in range(len(corners)):
-            corners_reproj, _ = cv2.fisheye.projectPoints(self.BOARD, data.rvecs[i], data.tvecs[i], data.camera_mat,
+            corners_reproj, _ = cv2.fisheye.projectPoints(self.board[i], data.rvecs[i], data.tvecs[i], data.camera_mat,
                                                           data.dist_coeff)
             err = cv2.norm(corners_reproj, corners[i], cv2.NORM_L2) / len(corners_reproj)
             data.reproj_err.append(err)
@@ -114,17 +119,18 @@ class Normal:
     def __init__(self):
         self.data = CalibData()
         self.inited = False
-        self.BOARD = np.array([[(j * args.SQUARE_SIZE, i * args.SQUARE_SIZE, 0.)]
-                               for i in range(args.BORAD_HEIGHT)
-                               for j in range(args.BORAD_WIDTH)], dtype=np.float32)
+        # self.BOARD = np.array([[(j * args.SQUARE_SIZE, i * args.SQUARE_SIZE, 0.)]
+        #                        for i in range(args.BOARD_HEIGHT)
+        #                        for j in range(args.BOARD_WIDTH)], dtype=np.float32)
+        self.board = []
 
     def update(self, corners, frame_size):
-        board = [self.BOARD] * len(corners)
+        # board = [self.BOARD] * len(corners)
         if not self.inited:
-            self._update_init(board, corners, frame_size)
+            self._update_init(self.board, corners, frame_size)
             self.inited = True
         else:
-            self._update_refine(board, corners, frame_size)
+            self._update_refine(self.board, corners, frame_size)
         self._calc_reproj_err(corners)
         self._get_undistort_maps()
 
@@ -154,7 +160,7 @@ class Normal:
         data = self.data
         data.reproj_err = []
         for i in range(len(corners)):
-            corners_reproj, _ = cv2.projectPoints(self.BOARD, data.rvecs[i], data.tvecs[i], data.camera_mat,
+            corners_reproj, _ = cv2.projectPoints(self.board[i], data.rvecs[i], data.tvecs[i], data.camera_mat,
                                                   data.dist_coeff)
             err = cv2.norm(corners_reproj, corners[i], cv2.NORM_L2) / len(corners_reproj)
             data.reproj_err.append(err)
@@ -184,14 +190,17 @@ class InCalibrator:
         else:
             raise Exception("camera should be fisheye/normal")
         self.corners = []
-        self.borad = []
+        # self.board = []
+        self.single_board = np.array([[(j * args.SQUARE_SIZE, i * args.SQUARE_SIZE, 0.)]
+                                      for i in range(args.BOARD_HEIGHT)
+                                      for j in range(args.BOARD_WIDTH)], dtype=np.float32)
 
     @staticmethod
     def get_args():
         return args
 
     def get_corners(self, img):
-        ok, corners = cv2.findChessboardCorners(img, (args.BORAD_WIDTH, args.BORAD_HEIGHT),
+        ok, corners = cv2.findChessboardCorners(img, (args.BOARD_WIDTH, args.BOARD_HEIGHT),
                                                 flags=cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_NORMALIZE_IMAGE | cv2.CALIB_CB_FAST_CHECK)
         if ok:
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -201,7 +210,7 @@ class InCalibrator:
 
     def draw_corners(self, img):
         ok, corners = self.get_corners(img)
-        cv2.drawChessboardCorners(img, (args.BORAD_WIDTH, args.BORAD_HEIGHT), corners, ok)
+        cv2.drawChessboardCorners(img, (args.BOARD_WIDTH, args.BOARD_HEIGHT), corners, ok)
         return img
 
     def undistort(self, img):
@@ -213,13 +222,22 @@ class InCalibrator:
             self.camera.update(self.corners, img.shape[1::-1])
         return self.camera.data
 
-    def __call__(self, raw_frame):
+    def single_board_set(self, bw, bh):
+        self.single_board = np.array([[(j * args.SQUARE_SIZE, i * args.SQUARE_SIZE, 0.)]
+                                      for i in range(bh)
+                                      for j in range(bw)], dtype=np.float32)
+
+    def __call__(self, raw_frame, filepath=None):
+        # chess_board_sdk.find_chessboard(raw_frame, 0.5, filepath)
         ok, corners = self.get_corners(raw_frame)
         result = self.camera.data
         if ok:
             self.corners.append(corners)  # 角点像素坐标
-            self.borad.append(self.camera.BOARD)  # 角点世界坐标
+            self.camera.board.append(self.single_board)  # 角点世界坐标
             result = self.calibrate(raw_frame)
+            if filepath is not None:
+                cv2.drawChessboardCorners(raw_frame, (args.BOARD_WIDTH, args.BOARD_HEIGHT), corners, ok)
+                cv2.imwrite(filepath, raw_frame)
         return result
 
 
@@ -261,10 +279,10 @@ class CalibMode():
         cap.set(cv2.CAP_PROP_FPS, args.CAMERA_FPS)
         return cap
 
-    def runCalib(self, raw_frame, display_raw=False, display_undist=False):
+    def runCalib(self, raw_frame, display_raw=False, display_undist=False, filepath=None):
         calibrator = self.calibrator
         raw_frame = self.imgPreprocess(raw_frame)
-        result = calibrator(raw_frame)
+        result = calibrator(raw_frame, filepath)
         if display_raw or display_undist:
             raw_frame = calibrator.draw_corners(raw_frame)
         if display_raw:
@@ -284,7 +302,7 @@ class CalibMode():
             for filename in filenames:
                 print(filename)
                 raw_frame = cv2.imread(filename)
-                result = self.runCalib(raw_frame)
+                result = self.runCalib(raw_frame, filepath=os.path.join(args.INPUT_PATH, filename))
                 # key = cv2.waitKey(1)
                 # if key == 27: break
             cv2.destroyAllWindows()

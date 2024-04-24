@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import cv2
 import os
@@ -6,7 +8,7 @@ from numpy import dtype, uint8
 import time
 
 
-def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
+def getBoardPosition(imgPath, boardSize, outPath, count=0, find_ex_board=False):
     inImg = cv2.imread(imgPath, cv2.IMREAD_GRAYSCALE)
     if inImg is None:
         print("Imread error!")
@@ -23,14 +25,28 @@ def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
     gray = cv2.resize(inImg, (int(imgWith / factor), int(imgHigh / factor)))
     # inImg_clone = inImg.copy()
     m_time = time.time()
+
+    ex_distance_min = 9999  # 和底边中心的的像素距离
+    ex_distance_thr = math.sqrt(math.pow((grayHigh / 2), 2) + math.pow((grayWith / 4), 2))
+
     idI = 0
-    while (ret):
+    while ret:
         # 寻找并绘制每个棋盘格的角点
         ret, corners = cv2.findChessboardCorners(gray, boardSize, None)
         if ret:
             # 在图像上绘制第一个棋盘格的角点
             x, y, w, h = cv2.boundingRect(corners)
             gray[y:y + h, x:x + w] = 0
+
+            # 如果是在标定外参，则只截取正对相机那个棋盘格
+            if find_ex_board:
+                ex_distance = math.sqrt(
+                    math.pow((grayHigh - (y + h / 2)), 2) + math.pow((grayWith / 2 - (x + w / 2)), 2))
+                if ex_distance >= ex_distance_min or ex_distance >= ex_distance_thr:
+                    continue
+                else:
+                    ex_distance_min = ex_distance
+                    idI = 0
             black_rect = [int(y * factor), int((y + h) * factor), int(x * factor), int((x + w) * factor)]
             x = x - margin * w
             if x < 0:
@@ -61,6 +77,9 @@ def getBoardPosition(imgPath, boardSize, boardCnt, outPath, count):
             inImg[black_rect[0]:black_rect[1], black_rect[2]:black_rect[3]] = 0
         else:
             break
+    if find_ex_board and ex_distance_min == 9999:
+        return False
+    return True
     # m_time = time.time() - m_time
     # for idI in range(len(dstRect)):
     #     outImg = np.zeros((imgHigh, imgWith), dtype=uint8)

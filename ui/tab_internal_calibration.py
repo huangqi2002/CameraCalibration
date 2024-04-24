@@ -46,6 +46,10 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.start_ok = False
         self.update()
 
+        # 防止界面大小不可调节
+        self.label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+
+
     def set_choose_file_visible(self, visible=True):
         self.label.setVisible(visible)
         self.lineEdit_internal_file_path.setVisible(visible)

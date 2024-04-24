@@ -59,7 +59,7 @@ class MainController(BaseController):
         # 读取配置文件，初始化model
 
         # 初始化内外参矩阵
-        app_model.config_internal = app_model.config_model.read_config_file("fg/inter_cfg.json")
+        # app_model.config_internal = app_model.config_model.read_config_file("configs/internal/external_cfg.json")
         pass
 
     # 初始化界面控制器

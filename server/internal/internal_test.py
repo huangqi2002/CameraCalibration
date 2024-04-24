@@ -36,8 +36,8 @@ def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize):
     args.RESIZE_FLAG = bResize
     args.FRAME_WIDTH = imgW
     args.FRAME_HEIGHT = imgH
-    args.BORAD_WIDTH = bW
-    args.BORAD_HEIGHT = bH
+    args.BOARD_WIDTH = bW
+    args.BOARD_HEIGHT = bH
     args.SQUARE_SIZE = bSize
     calibrator = InCalibrator(mode)  # 初始化内参标定器
     calib = CalibMode(calibrator, 'image', 'auto')  # 选择标定模式
@@ -49,7 +49,7 @@ def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize):
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    return result.camera_mat, result.dist_coeff, calibrator.borad, calibrator.corners
+    return result.camera_mat, result.dist_coeff, calibrator.camera.board, calibrator.corners
 
 
 def runExCalib():

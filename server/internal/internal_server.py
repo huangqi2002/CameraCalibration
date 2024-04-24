@@ -16,8 +16,8 @@ def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize):
     args.RESIZE_FLAG = bResize
     args.FRAME_WIDTH = imgW
     args.FRAME_HEIGHT = imgH
-    args.BORAD_WIDTH = bW
-    args.BORAD_HEIGHT = bH
+    args.BOARD_WIDTH = bW
+    args.BOARD_HEIGHT = bH
     args.SQUARE_SIZE = bSize
     calibrator = InCalibrator(mode)  # 初始化内参标定器
     calib = CalibMode(calibrator, 'image', 'auto')  # 选择标定模式
@@ -29,7 +29,7 @@ def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize):
         print("Distortion Coefficient is : {}".format(result.dist_coeff.tolist()))
         re_projection_error = np.mean(result.reproj_err)
         print("Reprojection Error is : {}".format(re_projection_error))
-    return result.camera_mat, result.dist_coeff, calibrator.borad, calibrator.corners, re_projection_error
+    return result.camera_mat, result.dist_coeff, calibrator.camera.board, calibrator.corners, re_projection_error
 
 
 def create_internal(img_size, mtx, distortion):
@@ -50,7 +50,7 @@ def create_internal(img_size, mtx, distortion):
 def stitch_test(filePath):
     mode = "fisheye"
     mode_normal = "normal"
-    precision = 1
+    precision = 0.1
     img_sizeLR_OLD = (2560, 1440)
     img_sizeML = (1920, 1080)
     img_sizeMR = (1920, 1080)
@@ -59,7 +59,7 @@ def stitch_test(filePath):
 
     print(1)
     mtxL, distortionL, __, __, reProjectionErrorL = runInCalib_2(mode, filePath + "/L", "chessboard", False,
-                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 50)
+                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 25)
     print(2)
     if mtxL is None or distortionL is None or reProjectionErrorL is None:
         return False, f"L NoBoeardError"
@@ -68,7 +68,7 @@ def stitch_test(filePath):
     print(f"L ReProjectionError: {reProjectionErrorL}")
 
     mtxML, distortionML, __, __, reProjectionErrorML = runInCalib_2(mode_normal, filePath + "/ML", "chessboard", False,
-                                                                    img_sizeML[0], img_sizeML[1], 11, 8, 50)
+                                                                    img_sizeML[0], img_sizeML[1], 11, 8, 25)
     if mtxML is None or distortionML is None or reProjectionErrorML is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorML >= precision:
@@ -76,7 +76,7 @@ def stitch_test(filePath):
     print(f"ML ReProjectionError: {reProjectionErrorML}")
 
     mtxMR, distortionMR, __, __, reProjectionErrorMR = runInCalib_2(mode_normal, filePath + "/MR", "chessboard", False,
-                                                                    img_sizeMR[0], img_sizeMR[1], 11, 8, 50)
+                                                                    img_sizeMR[0], img_sizeMR[1], 11, 8, 25)
     if mtxMR is None or distortionMR is None or reProjectionErrorMR is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorMR >= precision:
@@ -84,7 +84,7 @@ def stitch_test(filePath):
     print(f"MR ReProjectionError: {reProjectionErrorMR}")
 
     mtxR, distortionR, __, __, reProjectionErrorR = runInCalib_2(mode, filePath + "/R", "chessboard", False,
-                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 50)
+                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 25)
     if mtxR is None or distortionR is None or reProjectionErrorR is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorR >= precision:

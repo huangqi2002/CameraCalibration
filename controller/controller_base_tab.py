@@ -63,6 +63,8 @@ class BaseControllerTab(BaseController):
         video_server = app_model.video_server
         if video_server is None:
             return
+        app_model.video_server.tab_index = self.tab_index
+
         cameras = app_model.video_server.get_cameras()
         if cameras is None:
             return
@@ -100,7 +102,6 @@ class BaseControllerTab(BaseController):
                 print("Timer is active:", video.timer.isActive())
             print("start_timer")
 
-
     # 暂停播放视频
     def parse_video(self):
         for key, video in self.video_map.items():
@@ -110,7 +111,7 @@ class BaseControllerTab(BaseController):
 
     # 暂停播放视频，并只播放指定视频
     def start_video_unique(self, direction: str, label: QLabel, rotate):
-    # def start_video_unique(self, direction: str):
+        # def start_video_unique(self, direction: str):
         self.parse_video()
         for key, video in self.video_map.items():
             app_model.video_server.pause(key)
@@ -209,13 +210,14 @@ class BaseControllerTab(BaseController):
 
     # 设置工厂模式
     def set_factory_mode(self):
-        if m_global.m_global_debug:
-            factory_mode_result = True
-            self.log.log_debug(f"factory_mode_result: {factory_mode_result}")
-            return 1
-        else:
-            factory_mode_result = server.set_factory_mode(mode=1)
-            self.log.log_debug(f"factory_mode_result: {factory_mode_result}")
+        # if m_global.m_global_debug:
+        #     factory_mode_result = True
+        #     self.log.log_debug(f"factory_mode_result: {factory_mode_result}")
+        #     return 1
+        # else:
+        factory_mode_result = server.set_factory_mode(mode=1)
+        self.log.log_debug(f"factory_mode_result: {factory_mode_result}")
+
         if not factory_mode_result:
             return -1
         try:
@@ -260,7 +262,6 @@ class BaseControllerTab(BaseController):
             self.reboot_finish_signal.emit(1)
             return
         self.show_message_signal.emit(False, "重新连接设备失败")
-
 
     def clear_folder(self, folder_path):
         """

@@ -6,8 +6,8 @@ import os
 parser = argparse.ArgumentParser(description="Homography from Source to Destination Image")
 parser.add_argument('-id', '--CAMERA_ID', default=1, type=int, help='Camera ID')
 parser.add_argument('-path', '--INPUT_PATH', default='./data/', type=str, help='Input Source/Destination Image Path')
-parser.add_argument('-bw','--BORAD_WIDTH', default=7, type=int, help='Chess Board Width (corners number)')
-parser.add_argument('-bh','--BORAD_HEIGHT', default=6, type=int, help='Chess Board Height (corners number)')
+parser.add_argument('-bw','--BOARD_WIDTH', default=7, type=int, help='Chess Board Width (corners number)')
+parser.add_argument('-bh','--BOARD_HEIGHT', default=6, type=int, help='Chess Board Height (corners number)')
 parser.add_argument('-src', '--SOURCE_IMAGE', default='img_src', type=str, help='Source Image File Name Prefix (eg.:img_src)')
 parser.add_argument('-dst', '--DEST_IMAGE', default='img_dst', type=str, help='Destionation Image File Name Prefix (eg.:img_dst)')
 parser.add_argument('-size','--SCALED_SIZE', default=10, type=int, help='Scaled Chess Board Square Size (image pixel)')
@@ -92,10 +92,10 @@ class ScaleImage:
         
     def calc_dist(self, corners):
         dist_total = 0
-        for i in range(args.BORAD_HEIGHT):
-            dist = cv2.norm(corners[i * args.BORAD_WIDTH,:], corners[(i+1) * args.BORAD_WIDTH-1,:], cv2.NORM_L2)
-            dist_total += dist / (args.BORAD_WIDTH - 1)
-        self.dist_square = dist_total / args.BORAD_HEIGHT
+        for i in range(args.BOARD_HEIGHT):
+            dist = cv2.norm(corners[i * args.BOARD_WIDTH,:], corners[(i+1) * args.BOARD_WIDTH-1,:], cv2.NORM_L2)
+            dist_total += dist / (args.BOARD_WIDTH - 1)
+        self.dist_square = dist_total / args.BOARD_HEIGHT
 
     def padding(self, img, width, height):
         H = img.shape[0]
@@ -153,14 +153,14 @@ class ExCalibrator():
         return img
         
     def get_corners(self, img, subpix, draw=False):
-        ok, corners = cv2.findChessboardCorners(img, (args.BORAD_WIDTH, args.BORAD_HEIGHT),
+        ok, corners = cv2.findChessboardCorners(img, (args.BOARD_WIDTH, args.BOARD_HEIGHT),
                       flags = cv2.CALIB_CB_ADAPTIVE_THRESH|cv2.CALIB_CB_NORMALIZE_IMAGE)
         if ok: 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             corners = cv2.cornerSubPix(gray, corners, (subpix, subpix), (-1, -1),
                                        (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01))
         if draw:
-            cv2.drawChessboardCorners(img, (args.BORAD_WIDTH, args.BORAD_HEIGHT), corners, ok)
+            cv2.drawChessboardCorners(img, (args.BOARD_WIDTH, args.BOARD_HEIGHT), corners, ok)
         return ok, corners
     
     def warp(self):
