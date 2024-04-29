@@ -4,6 +4,8 @@ class Camera:
     is_open: bool = False
     rtsp_url: str = None
 
+    frame_is_ok = False
+
     frame = None
     fps = 10
     frame_time = int(1000 / fps)

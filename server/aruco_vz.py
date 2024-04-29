@@ -53,40 +53,62 @@ class aruco_vz():
 
     # 设置 charuco board
     def set_charuco_board(self, size, squareLength=0.25, markerLength=0.2):
+        # # 创建一个从 0 开始的一维数组，包含 9 * 6 = 54 个元素
+        # ids_array = np.arange(3, 111)
+        # # 将一维数组转换为九行六列的二维数组
+        # ids = ids_array.reshape(9, 12)
+
         self.charuco_board = cv2.aruco.CharucoBoard(size, squareLength, markerLength, self.aruco_dictionary)
         self.charuco_detector.setBoard(self.charuco_board)
 
     # 绘制并保存Charuco板图像
-    def charuco_gen(self, size):
+    def charuco_gen(self, size, img_path="charuco_board.png"):
         charuco_board_img = self.charuco_board.generateImage(size)
-        cv2.imwrite("charuco_board.png", charuco_board_img)
+        cv2.imwrite(img_path, charuco_board_img)
         return charuco_board_img
 
     def draw_charuco_corners(self, img, charuco_corners):
-        # 获取点的数量
         num_points_list = len(charuco_corners)
+        for i in range(num_points_list):
+            # 获取点的数量
+            num_points_ndarray = charuco_corners[i].shape[0]
+
+            # 创建一个从浅到深的颜色列表
+            colors = [(0, 0, int(i * 255)) for i in np.linspace(0.5, 1, num_points_ndarray)]
+            # 绘制图像
+            for j in range(num_points_ndarray):
+                color = colors[j]
+                point = tuple(map(int, charuco_corners[i][j][0]))
+                color = colors[j]
+                cv2.circle(img, point, 5, color, -1)
+
+    def draw_marker_corners(self, img, marker_corners):
+        # 获取点的数量
+        num_points_list = len(marker_corners)
 
         # 创建一个从浅到深的颜色列表
-        colors = [(int(i * 255), 0, 0) for i in np.linspace(0, 1, num_points_list)]
+        colors = [(0, int(i * 255), 0) for i in np.linspace(0, 1, num_points_list)]
 
         # 绘制图像
         for i in range(num_points_list):
             color = colors[i]
             for j in range(4):
-                point = tuple(map(int, charuco_corners[i][0, j]))
-            color = colors[i]
-            cv2.circle(img, point, 5, color, -1)
+                point = tuple(map(int, marker_corners[i][0, j]))
+                cv2.circle(img, point, 5, color, -1)
 
     # 检测charuco
     def charuco_detect(self, img, paint=False):
+        objPoints, imgPoints, ret_img = None, None, img.copy()
         charucoCorners, charucoIds, markerCorners, markerIds = self.charuco_detector.detectBoard(img)
         if charucoCorners is not None:
             objPoints, imgPoints = self.charuco_board.matchImagePoints(charucoCorners, charucoIds)
-            if charucoCorners.shape[0] >= 10:
-                self.draw_charuco_corners(img, markerCorners)
-                # cv2.aruco.drawDetectedMarkers(img, markerCorners, markerIds)
-                print(charucoCorners)
-        return objPoints, imgPoints
+            # if charucoCorners.shape[0] >= 10:
+            if paint:
+                # self.draw_charuco_corners(ret_img, charucoCorners)
+                cv2.aruco.drawDetectedCornersCharuco(ret_img, charucoCorners, charucoIds, cornerColor=(0, 255, 0))
+                # cv2.aruco.drawDetectedMarkers(ret_img, markerCorners, markerIds)
+                # print(charucoCorners)
+        return objPoints, imgPoints, charucoIds, ret_img
 
     # 设置artah 参数
     # 创建 DetectorParameters 对象并设置参数

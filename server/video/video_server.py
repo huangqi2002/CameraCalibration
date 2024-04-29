@@ -36,9 +36,19 @@ class VideoServer(QObject):
     def __init__(self):
         super().__init__()
         self.cameras = None
+
+        # 控制播放线程
         self.work_threads = None
         self.play_thread_mutex = None
+
+        # 控制进程结束
+        self.end_thread = False
+        self.end_thread_event = threading.Event()
+
+        # 展示连接相机个数
         self.camera_cnt = 0
+        self.camera_cnt_lock = threading.Lock()  # 锁，用于保护计数器camera_cnt
+
         self.undistorted_bool = False  # 内参展示界面是否去畸变
 
         self.four_img_flag = {'middle_left': 0, 'left': 0, 'right': 0, 'middle_right': 0}
@@ -66,7 +76,7 @@ class VideoServer(QObject):
         app_model.config_ex_internal_path = ex_internal_data_path
         # self.bool_stop_get_frame = False
 
-        aruco_tool.set_aruco_dictionary(5, 250)
+        aruco_tool.set_aruco_dictionary(5, 1000)
         aruco_tool.set_charuco_board((12, 9))
 
     # 将YUV420P转成cv::Mat格式
@@ -98,10 +108,12 @@ class VideoServer(QObject):
             self.internal_data = json.load(f)
         self.mapx = {}
         self.mapy = {}
+        self.fisheye_ctrl(22)
 
     def fisheye_external_init(self, path):
         external_data_path = path.encode(encoding="utf-8", errors="ignore")
         self.fisheye_dll.fisheye_external_initialize(external_data_path)
+        self.fisheye_ctrl(22)
 
     def four_img_stitch(self, frame_1, frame_2):
         if frame_1 is None or frame_2 is None:
@@ -138,28 +150,6 @@ class VideoServer(QObject):
 
         return stitch_image
 
-    def stitch_crop(self, image):
-        # 将图像转换为灰度
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        # 二值化图像
-        ret, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
-        # 寻找轮廓
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        # 找到最大的轮廓
-        max_contour = max(contours, key=cv2.contourArea)
-
-        # 计算最小边界框
-        rect = cv2.minAreaRect(max_contour)
-        box = cv2.boxPoints(rect)
-        box = np.int0(box)
-        # 提取最小边界框的坐标
-        x, y, w, h = cv2.boundingRect(box)
-        # print(x, y, w, h)
-        # 截取图像
-        cropped_image = image[y:y + h, x:x + w]
-        return cropped_image
-
     def create(self, cameras: dict):
         # self.stop_get_frame()
         self.release()
@@ -171,20 +161,19 @@ class VideoServer(QObject):
         self.work_threads = []
         self.play_thread_mutex = {}
 
-        self.work_threads_mutex.acquire()
         for direction, camera in self.cameras.items():
-            paused = True
+            pause = False
             # pause_cond = threading.Condition(threading.Lock())
-            self.play_thread_mutex[direction] = [paused, threading.Condition(threading.Lock())]
-            camera.is_open = True
+            self.play_thread_mutex[direction] = [pause, threading.Condition(threading.Lock())]
             if direction == "stitch":
                 play_thread = threading.Thread(target=self.get_frame_stitch, args=(direction, camera,))
+            elif direction == "all":
+                play_thread = threading.Thread(target=self.get_frame_all, args=(direction, camera,))
             else:
                 play_thread = threading.Thread(target=self.get_frame, args=(direction, camera,))
             play_thread.start()
             self.work_threads.append(play_thread)
             print(f"{direction} Thread create successful")
-        self.work_threads_mutex.release()
 
     def get_cameras(self):
         return self.cameras
@@ -231,8 +220,6 @@ class VideoServer(QObject):
         if not self.play_thread_mutex:
             return
         if direction in self.play_thread_mutex:
-            if not self.play_thread_mutex[direction][0]:
-                return
             with self.play_thread_mutex[direction][1]:
                 self.play_thread_mutex[direction][0] = False
                 self.play_thread_mutex[direction][1].notify()  # 唤醒线程
@@ -255,84 +242,79 @@ class VideoServer(QObject):
 
     # @staticmethod
     def get_frame(self, direction, camera: Camera):
+        # 判断传入的camera是否有效
         if camera is None or camera.rtsp_url is None:
             print("get_frame, Invalid camera or rtsp_url")
-
         else:
             try:
-                cap_can_release = False
-                print(f"start play:{camera.rtsp_url}\n")
-                open_ret = self.camera_connect(camera, 20)
-                if open_ret:
-                    cap_can_release = True
-                    self.camera_cnt += 1
-                    print(f"{camera.rtsp_url} is connected")
-                    self.signal_cameraconnect_num.emit(self.camera_cnt)
+                connect = True
+                # 连接成功开始拉视频流
+                while True:
+                    if connect:
+                        # 连接 url 20次
+                        print(f"start play:{camera.rtsp_url}\n")
+                        open_ret = self.camera_connect(camera, 20)
+                        if open_ret:
+                            camera.cap.set(cv2.CAP_PROP_BUFFERSIZE, 10)
 
-                else:
-                    print(f"start play:{camera.rtsp_url} failed")
-
-                while camera.cap.isOpened() and camera.is_open:
-                    # 判断线程是否被终止
-                    with self.play_thread_mutex[direction][1]:
-                        while self.play_thread_mutex[direction][0]:
-                            print(f"{direction} is stop\n")
-                            if camera.is_open:
-                                camera.cap.release()
-                                cap_can_release = False
-                            self.play_thread_mutex[direction][1].wait()  # 等待被唤醒
-                            print(f"{direction} is resumeing")
-                            open_ret = False
-                            if camera.is_open and not self.play_thread_mutex[direction][0]:  # 如果不是因为要终止线程而发出的唤醒信号
-                                open_ret = self.camera_connect(camera, 20)
-                                if open_ret:
-                                    cap_can_release = True
-                                    print(f"{direction} is resume")
-
-                        if not open_ret:
+                            with self.camera_cnt_lock:
+                                self.camera_cnt += 1
+                                print(f"{camera.rtsp_url} is connected")
+                                self.signal_cameraconnect_num.emit(self.camera_cnt)
+                        else:
                             print(f"start play:{camera.rtsp_url} failed")
-                            break
+                            return
+
+                        connect = False
+
+                    # 是否暂停
+                    while self.play_thread_mutex[direction][0]:
+                        with self.play_thread_mutex[direction][1]:
+                            print(f"{direction} is wait {bool(self.play_thread_mutex[direction][0])}")
+                            camera.cap.release()
+                            with self.camera_cnt_lock:
+                                self.camera_cnt -= 1
+                                self.signal_cameraconnect_num.emit(self.camera_cnt)
+                            self.play_thread_mutex[direction][1].wait()
+                            connect = True
+                            print(f"{direction} is resume {bool(self.play_thread_mutex[direction][0])}")
+
+                    if self.end_thread:
+                        print(f"{direction} is finished")
+                        break
+
+                    # 读取图片
                     ret, frame = camera.cap.read()
                     if not ret:
                         print(f"{direction} Failed to retrieve frame")
                         camera.frame_error_count += 1
-                        if camera.frame_error_count >= camera.frame_time * 5:
+                        if camera.frame_error_count >= camera.frame_time * 2:
                             print("Exceeded frame error count, exiting")
                             camera.frame_error_count = 0
                             break
                         time.sleep(camera.frame_time / 1000)
                         continue
-
-                    # 判断是否需要去畸变
-                    if not self.tab_index:
-                        objPoints, imgPoints = aruco_tool.charuco_detect(frame, True)
-                        print(f"objPoints : {objPoints}\nimgPoints : {imgPoints}")
-                        if self.undistorted_bool:
-                            frame = self.undistorted_frame(frame, direction)
-
-                    camera.frame = frame
                     camera.frame_error_count = 0
-                    self.four_img_flag[direction] = 1
 
-                self.camera_cnt -= 1
-                self.signal_cameraconnect_num.emit(self.camera_cnt)
-                if cap_can_release:
-                    camera.cap.release()
+                    # 将读取到的frame写入相机中
+                    # print(f"{direction} is read one frame {camera.frame_is_ok}")
+                    if not camera.frame_is_ok:
+                        # 判断是否需要去畸变
+                        if not self.tab_index:
+                            if self.undistorted_bool:
+                                frame = self.undistorted_frame(frame, direction)
+                        camera.frame = frame
+                        camera.frame_is_ok = True
+                        self.four_img_flag[direction] = 1
+
+                with self.camera_cnt_lock:
+                    self.camera_cnt -= 1
+                    self.signal_cameraconnect_num.emit(self.camera_cnt)
+                camera.cap.release()
                 print(f"{camera.rtsp_url} is disconnected")
+
             except Exception as e:
                 print(f"VideoCapture exception: {e}")
-
-        current_thread = threading.current_thread()
-        self.work_threads_mutex.acquire()
-        if current_thread in self.work_threads:
-            self.work_threads.remove(current_thread)
-        self.work_threads_mutex.release()
-        if len(self.work_threads) == 0:
-            print(f"finnal")
-            self.frame_stop_cond.acquire()
-            print("self.frame_stop_cond.notify_all()")
-            self.frame_stop_cond.notify_all()
-            self.frame_stop_cond.release()
 
     def undistorted_frame(self, frame, direction):
         direction_str = direction.replace("middle", "mid")
@@ -384,80 +366,174 @@ class VideoServer(QObject):
 
     def get_frame_stitch(self, direction, camera: Camera):
         # 输出连接信息
-        print(f"start play:{camera.rtsp_url}\n")
-        self.camera_cnt += 1
-        print(f"{camera.rtsp_url} is connected")
-        self.signal_cameraconnect_num.emit(self.camera_cnt)
+        print(f"start play:{direction}\n")
+        with self.camera_cnt_lock:
+            self.camera_cnt += 1
+            self.signal_cameraconnect_num.emit(self.camera_cnt)
+            if self.camera_cnt == 0:
+                self.end_thread_event.set()
+        print(f"{direction} is connected")
+
         # direction_list = ["middle_left", "left", "right", "middle_right"]
         direction_list = ["left", "right"]
 
-        while camera.is_open:
-
-            # 判断线程是否被终止
-            with self.play_thread_mutex[direction][1]:
-                # print(f"{direction} 1 {self.play_thread_mutex[direction][0]}")
+        try:
+            while True:
+                # 是否暂停
                 while self.play_thread_mutex[direction][0]:
-                    print(f"{direction} fg is stop\n")
-                    self.play_thread_mutex[direction][1].wait()  # 等待被唤醒
-                    print(f"{direction} fg is resumeing")
-
-            # 判断四张待拼接图像是否准备好
-            four_img_ready = True
-            for sig_direction in direction_list:
-                if self.four_img_flag[sig_direction] == 0:
-                    four_img_ready = False
+                    with self.play_thread_mutex[direction][1]:
+                        with self.camera_cnt_lock:
+                            self.camera_cnt -= 1
+                            self.signal_cameraconnect_num.emit(self.camera_cnt)
+                        self.play_thread_mutex[direction][1].wait()
+                        with self.camera_cnt_lock:
+                            self.camera_cnt += 1
+                            self.signal_cameraconnect_num.emit(self.camera_cnt)
+                # 是否终结
+                if self.end_thread:
+                    print(f"{direction} is finished")
                     break
-            if four_img_ready is False:
-                # print(f"{direction} fg Failed to get frame")
-                camera.frame_error_count += 1
-                if camera.frame_error_count >= camera.frame_time * 5:
-                    print("Exceeded frame error count, exiting")
-                    camera.frame_error_count = 0
+
+                # 判断四张待拼接图像是否准备好
+                four_img_ready = True
+                for sig_direction in direction_list:
+                    if self.four_img_flag[sig_direction] == 0:
+                        four_img_ready = False
+                        # print(f"start play:{sig_direction} {self.four_img_flag[sig_direction]}\n")
+                        break
+                if four_img_ready is False:
+                    # print(f"{direction} fg Failed to get frame")
+                    camera.frame_error_count += 1
+                    if camera.frame_error_count >= camera.frame_time * 5:
+                        print("Exceeded frame error count, exiting")
+                        camera.frame_error_count = 0
+                        break
+                    time.sleep(camera.frame_time / 1000)
+                    continue
+                camera.frame_error_count = 0
+
+                # 拼接图片
+                frame = self.four_img_stitch(self.cameras[direction_list[0]].frame,
+                                             self.cameras[direction_list[1]].frame)
+                self.cameras[direction_list[0]].frame_is_ok = False
+                self.cameras[direction_list[1]].frame_is_ok = False
+
+                # 将读取到的frame写入相机中
+                if not camera.frame_is_ok:
+                    camera.frame = frame.copy()
+                    # print(f"camera.frame is {camera.frame is None}")
+                    camera.frame_is_ok = True
+                    self.four_img_flag[direction] = 1
+
+            with self.camera_cnt_lock:
+                self.camera_cnt -= 1
+                self.signal_cameraconnect_num.emit(self.camera_cnt)
+                if self.camera_cnt == 0:
+                    self.end_thread_event.set()
+            camera.cap.release()
+            print(f"{camera.rtsp_url} is disconnected")
+
+        except Exception as e:
+            print(f"VideoCapture exception: {e}")
+
+    def four_img_all(self, frame_0, frame_1, frame_2, frame_3):
+        width = 600
+        height = 400
+
+        img_0 = frame_0.copy()
+        img_0 = cv2.resize(img_0, (width, height))
+
+        img_1 = frame_1.copy()
+        img_1 = cv2.resize(img_1, (width, height))
+
+        img_2 = frame_2.copy()
+        img_2 = cv2.resize(img_2, (width, height))
+
+        img_3 = frame_3.copy()
+        img_3 = cv2.resize(img_3, (width, height))
+
+        # 合成一张大图像
+        top_row = np.hstack((img_0, img_1))
+        bottom_row = np.hstack((img_2, img_3))
+        result_image = np.vstack((top_row, bottom_row))
+
+        return result_image
+
+    def get_frame_all(self, direction, camera: Camera):
+        # 输出连接信息
+        print(f"start play:{direction}\n")
+        with self.camera_cnt_lock:
+            self.camera_cnt += 1
+            self.signal_cameraconnect_num.emit(self.camera_cnt)
+            if self.camera_cnt == 0:
+                self.end_thread_event.set()
+        print(f"{direction} is connected")
+
+        direction_list = ["middle_left", "left", "right", "middle_right"]
+
+        try:
+            while True:
+                # 是否暂停
+                while self.play_thread_mutex[direction][0]:
+                    with self.play_thread_mutex[direction][1]:
+                        with self.camera_cnt_lock:
+                            self.camera_cnt -= 1
+                            self.signal_cameraconnect_num.emit(self.camera_cnt)
+                        self.play_thread_mutex[direction][1].wait()
+                        with self.camera_cnt_lock:
+                            self.camera_cnt += 1
+                            self.signal_cameraconnect_num.emit(self.camera_cnt)
+                # 是否终结
+                if self.end_thread:
+                    print(f"{direction} is finished")
                     break
-                time.sleep(camera.frame_time / 1000)
-                continue
+                # 判断四张待拼接图像是否准备好
+                four_img_ready = True
+                for sig_direction in direction_list:
+                    if self.four_img_flag[sig_direction] == 0:
+                        four_img_ready = False
+                        break
+                if four_img_ready is False:
+                    # print(f"{direction} fg Failed to get frame")
+                    camera.frame_error_count += 1
+                    if camera.frame_error_count >= camera.frame_time * 5:
+                        print("Exceeded frame error count, exiting")
+                        camera.frame_error_count = 0
+                        break
+                    time.sleep(camera.frame_time / 1000)
+                    continue
+                camera.frame_error_count = 0
+                # 拼接图片
+                frame = self.four_img_all(self.cameras[direction_list[0]].frame,
+                                          self.cameras[direction_list[1]].frame,
+                                          self.cameras[direction_list[2]].frame,
+                                          self.cameras[direction_list[3]].frame)
+                self.cameras[direction_list[0]].frame_is_ok = False
+                self.cameras[direction_list[1]].frame_is_ok = False
+                self.cameras[direction_list[2]].frame_is_ok = False
+                self.cameras[direction_list[3]].frame_is_ok = False
 
-            frame = self.four_img_stitch(self.cameras[direction_list[0]].frame,
-                                         self.cameras[direction_list[1]].frame)
-            camera.frame = frame
-            camera.frame_error_count = 0
+                # 将读取到的frame写入相机中
+                if not camera.frame_is_ok:
+                    camera.frame = frame.copy()
+                    # print(f"camera.frame is {camera.frame is None}")
+                    camera.frame_is_ok = True
+                    self.four_img_flag[direction] = 1
 
-        print(f"{camera.rtsp_url} is disconnected")
+            with self.camera_cnt_lock:
+                self.camera_cnt -= 1
+                self.signal_cameraconnect_num.emit(self.camera_cnt)
+                if self.camera_cnt == 0:
+                    self.end_thread_event.set()
+            camera.cap.release()
+            print(f"{camera.rtsp_url} is disconnected")
 
-        current_thread = threading.current_thread()
-        self.work_threads_mutex.acquire()
-        if current_thread in self.work_threads:
-            self.work_threads.remove(current_thread)
-        self.work_threads_mutex.release()
-        self.camera_cnt -= 1
-        self.signal_cameraconnect_num.emit(self.camera_cnt)
-        if len(self.work_threads) == 0:
-            print(f"finnal")
-            self.frame_stop_cond.acquire()
-            print("self.frame_stop_cond.notify_all()")
-            self.frame_stop_cond.notify_all()
-            self.frame_stop_cond.release()
-
-    # def camera_bind_label_and_timer(self, direction: str, rotate: int, label: QLabel, timer: QTimer):
-    #     if not label or not direction:
-    #         return
-    #     if not label.isVisible():
-    #         return
-    #     if self.cameras is None:
-    #         return
-    #     camera = self.cameras.get(direction)
-    #     if not camera:
-    #         return
-    #     camera.rotate = rotate
-    #     camera.label = label
-    #
-    #     if camera.timer is not None:
-    #         camera.timer.stop()
-    #     camera.timer = timer
-    #     camera.timer.timeout.connect(partial(self.update_frame, camera))
+        except Exception as e:
+            print(f"VideoCapture exception: {e}")
 
     @staticmethod
     def update_frame(camera):
+        print("update_frame")
         if camera is None or camera.frame is None:
             print("update_frame, Invalid camera or frame")
             return
@@ -515,26 +591,11 @@ class VideoServer(QObject):
             return
         if not self.work_threads:
             return
-        for key, camera in self.cameras.items():
-            camera.is_open = False
-        self.resume_all()
-        self.frame_stop_cond.acquire()
-        while len(self.work_threads) != 0:
-            self.frame_stop_cond.wait()
-        self.frame_stop_cond.release()
-        self.cameras.clear()
-        self.cameras = None
 
-        # if not self.work_threads:
-        #     return
-        # for work_thread in self.work_threads:
-        #     if work_thread.isRunning():
-        #         work_thread.quit()
-        self.work_threads_mutex.acquire()
-        self.work_threads.clear()
-        self.work_threads = None
-        self.work_threads_mutex.release()
-        self.camera_cnt = 0
+        self.resume_all()
+        self.end_thread = True
+        self.end_thread_event.wait()
+        self.end_thread_event.clear()
         for direction in self.four_img_flag.keys():
             self.four_img_flag[direction] = 0
         self.signal_cameraconnect_num.emit(self.camera_cnt)

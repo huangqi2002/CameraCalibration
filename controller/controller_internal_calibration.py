@@ -62,6 +62,7 @@ class InternalCalibrationController(BaseControllerTab):
         self.view.pushButton_midleft_play.clicked.connect(self.position_play)
         self.view.pushButton_midright_play.clicked.connect(self.position_play)
         self.view.pushButton_right_play.clicked.connect(self.position_play)
+        self.view.pushButton_all_play.clicked.connect(self.position_play)
 
         self.show_image_signal.connect(self.on_show_image)
         self.show_image_fg_signal.connect(self.on_show_image_fg)
@@ -76,7 +77,7 @@ class InternalCalibrationController(BaseControllerTab):
         # self.bind_label_and_timer("middle_right", self.view.label_video_fg, 270)
         # self.bind_label_and_timer("right", self.view.label_video_fg, 270)
 
-        self.direction_list = ["left", "middle_left", "middle_right", "right"]
+        self.direction_list = ["left", "middle_left", "middle_right", "right", "all"]
 
     # 切换设备类型
     def on_change_device_type(self, device_type):
@@ -122,6 +123,7 @@ class InternalCalibrationController(BaseControllerTab):
         # 弹出对话框，进制界面操作
         # self.view.show_loading(msg="正在处理内参计算...")
 
+    # 截图相机位置切换槽函数
     def position_play(self):
         if self.work_thread_state:
             return
@@ -134,14 +136,18 @@ class InternalCalibrationController(BaseControllerTab):
         except ValueError:
             print(f"The element {button_name} is not in the list.")
 
-    # 截图相机位置切换槽函数
+    # 截图相机位置切换函数
     def on_position_type_changed(self, index):
         self.view.set_screenshot_button_text(index * 2)
         self.position_index = index
         # 发出显示信号
         self.show_message_signal.emit(True, self.view.position_type_text[self.position_index] + "相机截图")
         # 更改显示视频
-        self.start_video_unique(self.direction_list[index], self.view.label_video_fg, 0)
+        if index != 4:
+            self.start_video_unique(self.direction_list[index], self.view.label_video_fg, 0)
+        else:# 全视野截图
+            self.start_video_all(self.direction_list, self.view.label_video_fg, 0)
+
         # self.start_video_fg_once.emit()
         # 如果视频还没连接上，使截图按钮不可使
         # if app_model.video_server.camera_state(self.direction_list[index]):
@@ -183,46 +189,46 @@ class InternalCalibrationController(BaseControllerTab):
     def undistorted(self, state):
         app_model.video_server.set_undistorted_bool(state)
 
-    def update_frame(self, camera, video):
-        # print(f" update_frame in : {self.undistorted_bool}")
-        # print(f"{camera.rtsp_url} update_frame\n")
-        if camera is None or camera.frame is None:
-            # self.log.log_err(f"Tab({self.tab_index}), Invalid camera or frame")
-            return
-        frame = camera.frame
-
-        if video is None or video.label is None:
-            self.log.log_err(f"Tab({self.tab_index}), Invalid video or label")
-            return
-        label = video.label
-
-        frame_rotated = None
-        rotate = video.rotate
-        label_size = label.size()
-        if rotate == 0:
-            frame_resized = cv2.resize(frame, (label_size.width(), label_size.height() - 1))
-            frame_rotated = frame_resized
-        else:
-            frame_resized = cv2.resize(frame, (label_size.height() - 1, label_size.width()))
-            # print("update_frame, frame_resized", frame_resized.shape)
-            if rotate == 90:
-                frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_90_CLOCKWISE)
-            elif rotate == 180:
-                frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_180)
-            elif rotate == 270:
-                frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_90_COUNTERCLOCKWISE)
-
-        if frame_rotated is None:
-            return
-        frame_rgb = cv2.cvtColor(frame_rotated, cv2.COLOR_BGR2RGB)
-        h, w, ch = frame_rgb.shape
-        bytes_per_line = ch * w
-        q_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(q_image)
-        # new_pixmap = pixmap.scaled(2960, 1664)
-        # print(f"before label.size:{label.size()}")
-        label.setPixmap(pixmap)
-        # print(f"after label.size:{label.size()}")
+    # def update_frame(self, camera, video):
+    #     # print(f" update_frame in : {self.undistorted_bool}")
+    #     # print(f"{camera.rtsp_url} update_frame\n")
+    #     if camera is None or camera.frame is None:
+    #         # self.log.log_err(f"Tab({self.tab_index}), Invalid camera or frame")
+    #         return
+    #     frame = camera.frame
+    #
+    #     if video is None or video.label is None:
+    #         self.log.log_err(f"Tab({self.tab_index}), Invalid video or label")
+    #         return
+    #     label = video.label
+    #
+    #     frame_rotated = None
+    #     rotate = video.rotate
+    #     label_size = label.size()
+    #     if rotate == 0:
+    #         frame_resized = cv2.resize(frame, (label_size.width(), label_size.height() - 1))
+    #         frame_rotated = frame_resized
+    #     else:
+    #         frame_resized = cv2.resize(frame, (label_size.height() - 1, label_size.width()))
+    #         # print("update_frame, frame_resized", frame_resized.shape)
+    #         if rotate == 90:
+    #             frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_90_CLOCKWISE)
+    #         elif rotate == 180:
+    #             frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_180)
+    #         elif rotate == 270:
+    #             frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    #
+    #     if frame_rotated is None:
+    #         return
+    #     frame_rgb = cv2.cvtColor(frame_rotated, cv2.COLOR_BGR2RGB)
+    #     h, w, ch = frame_rgb.shape
+    #     bytes_per_line = ch * w
+    #     q_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
+    #     pixmap = QPixmap.fromImage(q_image)
+    #     # new_pixmap = pixmap.scaled(2960, 1664)
+    #     # print(f"before label.size:{label.size()}")
+    #     label.setPixmap(pixmap)
+    #     # print(f"after label.size:{label.size()}")
 
     # 实时显示图像
     def on_show_image(self, direction, filepath):

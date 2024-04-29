@@ -34,8 +34,8 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.pushButton_start.setStyleSheet("QPushButton:pressed { background-color: #666; }"
                                             "QPushButton:disabled { background-color: #444; color: #999; }")
         self.pushButton_play_list = [self.pushButton_left_play, self.pushButton_midleft_play,
-                                     self.pushButton_midright_play, self.pushButton_right_play]
-        self.position_type_text = ["左", "最左", "最右", "右"]
+                                     self.pushButton_midright_play, self.pushButton_right_play, self.pushButton_all_play]
+        self.position_type_text = ["左", "最左", "最右", "右", "全视野"]
         for pushButton_play, type_text in zip(self.pushButton_play_list, self.position_type_text):
             pushButton_play.setStyleSheet("QPushButton{ background-color: #444; color: #999; }"
                                           "QPushButton:pressed { background-color: #666; }"

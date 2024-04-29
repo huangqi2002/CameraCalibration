@@ -128,6 +128,10 @@ class CommonBarController(BaseController):
             camera.rtsp_url = f"{config_item.get('shame')}://{app_model.device_model.ip}:{config_item.get('port')}{config_item.get('url')}"
             direction = config_item.get("direction")
             app_model.camera_list[direction] = camera
+        camera = Camera()
+        app_model.camera_list["all"] = camera
+        camera = Camera()
+        app_model.camera_list["stitch"] = camera
 
         # camera = Camera()
         # camera.rtsp_url = f"rtsp://{device_ip}:8557/left_main_0_1"

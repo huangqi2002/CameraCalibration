@@ -96,9 +96,19 @@ class MainController(BaseController):
     # 切换界面
     def on_tab_changed(self, index):
         self.log.log_debug("on_tab_changed", index)
-        self.internal_calibration_controller.on_tab_changed(index)
-        self.video_calibration_controller.on_tab_changed(index)
-        self.video_result_controller.on_tab_changed(index)
+        # 切换界面非本界面则暂停一切显示
+        if self.internal_calibration_controller.tab_index == index:
+            self.video_calibration_controller.on_tab_changed(index)
+            self.video_result_controller.on_tab_changed(index)
+            self.internal_calibration_controller.on_tab_changed(index)
+        elif self.video_calibration_controller.tab_index == index:
+            self.internal_calibration_controller.on_tab_changed(index)
+            self.video_result_controller.on_tab_changed(index)
+            self.video_calibration_controller.on_tab_changed(index)
+        elif self.video_result_controller.tab_index == index:
+            self.internal_calibration_controller.on_tab_changed(index)
+            self.video_calibration_controller.on_tab_changed(index)
+            self.video_result_controller.on_tab_changed(index)
 
     # 切换界面以刷新fg内参界面显示
     def start_video_fg_inter_once(self):

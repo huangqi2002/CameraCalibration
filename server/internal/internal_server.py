@@ -8,7 +8,7 @@ import numpy as np
 from server.internal.IntrinsicCalibration.intrinsicCalib import InCalibrator, CalibMode
 
 
-def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize):
+def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize, aruco_flag=False):
     print("Intrinsic Calibration ......")
     args = InCalibrator.get_args()  # 获取内参标定args参数
     args.INPUT_PATH = imgPath  # 修改为新的参数
@@ -19,6 +19,7 @@ def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize):
     args.BOARD_WIDTH = bW
     args.BOARD_HEIGHT = bH
     args.SQUARE_SIZE = bSize
+    args.ARUCO_FLAG = aruco_flag
     calibrator = InCalibrator(mode)  # 初始化内参标定器
     calib = CalibMode(calibrator, 'image', 'auto')  # 选择标定模式
     result = calib()  # 开始标定
@@ -56,10 +57,11 @@ def stitch_test(filePath):
     img_sizeMR = (1920, 1080)
     img_sizeLR_NEW = (2960, 1664)
     # img_sizeML = img_sizeMR = img_sizeLR_NEW
+    aruco_flag = False
 
     print(1)
     mtxL, distortionL, __, __, reProjectionErrorL = runInCalib_2(mode, filePath + "/L", "chessboard", False,
-                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 25)
+                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 25, aruco_flag)
     print(2)
     if mtxL is None or distortionL is None or reProjectionErrorL is None:
         return False, f"L NoBoeardError"
@@ -68,7 +70,7 @@ def stitch_test(filePath):
     print(f"L ReProjectionError: {reProjectionErrorL}")
 
     mtxML, distortionML, __, __, reProjectionErrorML = runInCalib_2(mode_normal, filePath + "/ML", "chessboard", False,
-                                                                    img_sizeML[0], img_sizeML[1], 11, 8, 25)
+                                                                    img_sizeML[0], img_sizeML[1], 11, 8, 25, aruco_flag)
     if mtxML is None or distortionML is None or reProjectionErrorML is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorML >= precision:
@@ -76,7 +78,7 @@ def stitch_test(filePath):
     print(f"ML ReProjectionError: {reProjectionErrorML}")
 
     mtxMR, distortionMR, __, __, reProjectionErrorMR = runInCalib_2(mode_normal, filePath + "/MR", "chessboard", False,
-                                                                    img_sizeMR[0], img_sizeMR[1], 11, 8, 25)
+                                                                    img_sizeMR[0], img_sizeMR[1], 11, 8, 25, aruco_flag)
     if mtxMR is None or distortionMR is None or reProjectionErrorMR is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorMR >= precision:
@@ -84,7 +86,7 @@ def stitch_test(filePath):
     print(f"MR ReProjectionError: {reProjectionErrorMR}")
 
     mtxR, distortionR, __, __, reProjectionErrorR = runInCalib_2(mode, filePath + "/R", "chessboard", False,
-                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 25)
+                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 25, aruco_flag)
     if mtxR is None or distortionR is None or reProjectionErrorR is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorR >= precision:

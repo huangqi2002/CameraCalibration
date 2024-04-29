@@ -2,6 +2,8 @@ import argparse
 import cv2
 import numpy as np
 import os
+from server.aruco_vz import aruco_tool
+
 # from server.external.lib3rd.load_lib import chess_board_sdk
 
 
@@ -32,8 +34,21 @@ parser.add_argument('-store', '--STORE_FLAG', default=False, type=bool, help='St
 parser.add_argument('-store_path', '--STORE_PATH', default='./data/', type=str, help='Path to Store Captured Images')
 parser.add_argument('-crop', '--CROP_FLAG', default=False, type=bool,
                     help='Crop Input Video/Image to (fw,fh) (Ture/False)')
+
+parser.add_argument('-aruco_dictionary_size', '--ARUCO_DIC_SIZE', default=5, type=int,
+                    help='aruco dictionary size')
+parser.add_argument('-aruco_dictionary_num', '--ARUCO_DIC_NUM', default=1000, type=int,
+                    help='aruco dictionary num')
+parser.add_argument('-aruco_board_num', '--ARUCO_BOARD_NUM', default=10, type=int,
+                    help='aruco board num')
+parser.add_argument('-aruco_board_spacer', '--ARUCO_BOARD_SPACER', default=1, type=int,
+                    help='aruco board spacer')
+
 parser.add_argument('-resize', '--RESIZE_FLAG', default=False, type=bool,
                     help='Resize Input Video/Image to (fw,fh) (Ture/False)')
+parser.add_argument('-aruco', '--ARUCO_FLAG', default=False, type=bool,
+                    help='ARUCO board (Ture/False)')
+
 args = parser.parse_args()
 
 
@@ -73,11 +88,11 @@ class Fisheye:
         data = self.data
         data.type = "FISHEYE"
         data.camera_mat = np.array(
-            [[1062.267560, 0.000000, 1524.057278], [0.000000, 1062.212564, 849.887492], [0.000000, 0.000000, 1.000000]])
-        data.dist_coeff = np.array([[-0.021930], [0.003117], [-0.002101], [0.000108]])
+            [[1062.267560, 0.000000, 1501.057278], [0.000000, 1062.212564, 867.887492], [0.000000, 0.000000, 1.000000]])
+        data.dist_coeff = np.array([[-0.018123981144576858], [-0.0026101267970621823], [0.0006215782316954739], [-0.00030905667520437564]])
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.fisheye.calibrate(
             board, corners, frame_size, data.camera_mat, data.dist_coeff,
-            flags=cv2.fisheye.CALIB_FIX_SKEW | cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC,
+            flags=cv2.fisheye.CALIB_FIX_SKEW | cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC | cv2.CALIB_USE_INTRINSIC_GUESS,
             criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 1e-6))
         data.ok = data.ok and cv2.checkRange(data.camera_mat) and cv2.checkRange(data.dist_coeff)
 
@@ -144,6 +159,7 @@ class Normal:
              [-0.06924570764420157]])
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.calibrateCamera(
             board, corners, frame_size, data.camera_mat, data.dist_coeff,
+            flags=cv2.CALIB_USE_INTRINSIC_GUESS,
             criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 1e-6))
         data.ok = data.ok and cv2.checkRange(data.camera_mat) and cv2.checkRange(data.dist_coeff)
 
@@ -208,6 +224,54 @@ class InCalibrator:
                                        (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01))
         return ok, corners
 
+    def get_aruco_corners(self, img, save_path=None):
+        aruco_tool.set_aruco_dictionary(args.ARUCO_DIC_SIZE, args.ARUCO_DIC_NUM)
+        aruco_tool.set_charuco_board((args.BOARD_WIDTH + 1,
+                                      (args.BOARD_HEIGHT + 1) * args.ARUCO_BOARD_NUM + args.ARUCO_BOARD_SPACER * (
+                                                  args.ARUCO_BOARD_NUM - 1)))
+
+        ret_img_bool = False
+        if save_path is not None:
+            ret_img_bool = True
+
+        objPoints, imgPoints, charucoIds, ret_img = aruco_tool.charuco_detect(img, ret_img_bool)
+
+        threshold = args.BOARD_WIDTH * (args.BOARD_HEIGHT + 1 + args.ARUCO_BOARD_SPACER)
+        # 初始化一个列表来存储十个组
+        temp_obj_point_list = [np.empty((0, 1, 3)) for _ in range(args.ARUCO_BOARD_NUM)]
+        temp_img_point_list = [np.empty((0, 1, 2)) for _ in range(args.ARUCO_BOARD_NUM)]
+
+        # 将 objPoints 和 charucoIds 进行 zip，得到每个点对应的 charucoId
+        points_with_charuco_ids = zip(objPoints, imgPoints, charucoIds)
+
+        # 分组并筛选出满足条件的非空组
+        for obj_point, img_point, ids in points_with_charuco_ids:
+            if ids is not None and 0 <= ids[0] < threshold * args.ARUCO_BOARD_NUM:
+                temp_ids = ids[0] // threshold
+                temp_obj_point_list[temp_ids] = np.vstack([temp_obj_point_list[temp_ids],  (obj_point[0].reshape(1, 1,-1) / 0.25 * args.SQUARE_SIZE)])
+                temp_img_point_list[temp_ids] = np.vstack([temp_img_point_list[temp_ids], img_point[0].reshape(1, 1,-1)])
+
+        # 过滤掉为空的组
+        obj_point_ndarray = [arr.astype(np.float32) for arr in temp_obj_point_list if arr.size > 0]
+        for group in obj_point_ndarray:
+            first_element_points = group[0].copy()  # 获取第一个元素的值
+            for i in range(0, len(group)):  # 遍历除第一个元素外的其他元素
+                points = group[i]
+                group[i] = points - first_element_points
+
+        img_point_ndarray = [arr.astype(np.float32) for arr in temp_img_point_list if arr.size > 0]
+
+        if ret_img_bool:
+            # temp_img = cv2.resize(ret_img, (800, 600))
+            # cv2.imshow("ret_img", temp_img)
+            # cv2.waitKey(0)
+            cv2.imwrite(save_path, ret_img)
+
+        ok = False
+        if len(obj_point_ndarray) > 0:
+            ok = True
+        return ok, obj_point_ndarray, img_point_ndarray
+
     def draw_corners(self, img):
         ok, corners = self.get_corners(img)
         cv2.drawChessboardCorners(img, (args.BOARD_WIDTH, args.BOARD_HEIGHT), corners, ok)
@@ -228,16 +292,27 @@ class InCalibrator:
                                       for j in range(bw)], dtype=np.float32)
 
     def __call__(self, raw_frame, filepath=None):
-        # chess_board_sdk.find_chessboard(raw_frame, 0.5, filepath)
-        ok, corners = self.get_corners(raw_frame)
-        result = self.camera.data
-        if ok:
-            self.corners.append(corners)  # 角点像素坐标
-            self.camera.board.append(self.single_board)  # 角点世界坐标
-            result = self.calibrate(raw_frame)
-            if filepath is not None:
-                cv2.drawChessboardCorners(raw_frame, (args.BOARD_WIDTH, args.BOARD_HEIGHT), corners, ok)
-                cv2.imwrite(filepath, raw_frame)
+        result = None
+        # 是否使用aruco板
+        if args.ARUCO_FLAG:
+            ok, objPoints, imgPoints = self.get_aruco_corners(raw_frame, filepath)
+            result = self.camera.data
+            if ok:
+                self.corners.extend(imgPoints)  # 角点像素坐标
+                self.camera.board.extend(objPoints)  # 角点世界坐标
+                result = self.calibrate(raw_frame)
+
+        else:
+            # chess_board_sdk.find_chessboard(raw_frame, 0.5, filepath)
+            ok, corners = self.get_corners(raw_frame)
+            result = self.camera.data
+            if ok:
+                self.corners.append(corners)  # 角点像素坐标
+                self.camera.board.append(self.single_board)  # 角点世界坐标
+                result = self.calibrate(raw_frame)
+                if filepath is not None:
+                    cv2.drawChessboardCorners(raw_frame, (args.BOARD_WIDTH, args.BOARD_HEIGHT), corners, ok)
+                    cv2.imwrite(filepath, raw_frame)
         return result
 
 
@@ -302,7 +377,7 @@ class CalibMode():
             for filename in filenames:
                 print(filename)
                 raw_frame = cv2.imread(filename)
-                result = self.runCalib(raw_frame, filepath=os.path.join(args.INPUT_PATH, filename))
+                result = self.runCalib(raw_frame, filepath=filename)
                 # key = cv2.waitKey(1)
                 # if key == 27: break
             cv2.destroyAllWindows()

@@ -29,6 +29,12 @@
       "shame": "rtsp",
       "url": "/stitch_0_0",
       "port": 8557
+    },
+    {
+      "direction": "all",
+      "shame": "rtsp",
+      "url": "/stitch_0_0",
+      "port": 8557
     }
   ],
   "RX5": [

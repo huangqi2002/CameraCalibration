@@ -44,6 +44,7 @@ class BaseControllerTab(BaseController):
     show_message_signal = None
     reboot_finish_signal = None
     current_direction = 'left'
+    current_cameras = None
 
     # 绑定配置文件中的相机与去显示的lable
     def bind_label_and_timer(self, direction: str, label: QLabel, rotate):
@@ -69,6 +70,7 @@ class BaseControllerTab(BaseController):
         if cameras is None:
             return
         if app_model.is_connected:
+            current_cameras = cameras
             app_model.video_server.pause_all()
             # print(f"{index} pause_all")
             self.start_video(cameras)
@@ -88,6 +90,7 @@ class BaseControllerTab(BaseController):
     # cameras是要播放的相机，其属于video_server，可以读到相机不断变换的帧
     # video_map中记录了相机与对应的定时器
     def start_video(self, cameras):
+        print(f"Timer is begin active:")
         if cameras is None:
             return
         for key, video in self.video_map.items():
@@ -95,12 +98,14 @@ class BaseControllerTab(BaseController):
             if camera is None:
                 continue
             app_model.video_server.resume(key)
+            ret_a = None
             if video.label is not None:
-                video.timer = QTimer(self)
-                ret_a = video.timer.timeout.connect(partial(self.update_frame, camera, video))
+                if video.timer is None:
+                    video.timer = QTimer(self)
+                    ret_a = video.timer.timeout.connect(partial(self.update_frame, camera, video))
                 video.timer.start(100)
-                print("Timer is active:", video.timer.isActive())
-            print("start_timer")
+                # print(f"{key} Timer is active: {ret_a}", video.timer.isActive())
+            # print("start_timer")
 
     # 暂停播放视频
     def parse_video(self):
@@ -108,6 +113,7 @@ class BaseControllerTab(BaseController):
             # app_model.video_server.pause(key)
             if video.timer:
                 video.timer.stop()
+                print(f"{key} is pause")
 
     # 暂停播放视频，并只播放指定视频
     def start_video_unique(self, direction: str, label: QLabel, rotate):
@@ -123,8 +129,24 @@ class BaseControllerTab(BaseController):
             return
         if app_model.is_connected:
             self.start_video(cameras)
-        print("start_video_unique\n")
+        # print("start_video_unique\n")
         # app_model.video_server.resume_uniq(direction)
+
+    def start_video_all(self, direction_list, label: QLabel, rotate):
+        self.parse_video()
+        self.video_map = {}
+
+        for direction in direction_list:
+            app_model.video_server.resume(direction)
+            self.bind_label_and_timer(direction, None, rotate)
+
+        self.bind_label_and_timer("all", label, rotate)
+        cameras = app_model.video_server.get_cameras()
+        if cameras is None:
+            return
+        if app_model.is_connected:
+            self.start_video(cameras)
+        # print("start_video\n")
 
     # 更新视频帧到lable上
     # camera中可以读到相机当前时刻的帧
@@ -134,7 +156,10 @@ class BaseControllerTab(BaseController):
         if camera is None or camera.frame is None:
             # self.log.log_err(f"Tab({self.tab_index}), Invalid camera or frame")
             return
+        if not camera.frame_is_ok:
+            return
         frame = camera.frame
+        camera.frame_is_ok = False
 
         if video is None or video.label is None:
             self.log.log_err(f"Tab({self.tab_index}), Invalid video or label")
