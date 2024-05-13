@@ -18,8 +18,10 @@ rtsp_url_1 = "rtsp://192.168.109.90:8557/out_left_sub_3_1"
 rtsp_url_2 = "rtsp://192.168.109.90:8557/out_right_sub_4_1"
 rtsp_url_3 = "rtsp://192.168.109.90:8557/right_main_2_0"
 
-img_ex_L = cv2.imread("../m_data/aruco/bf/ex/camera0.jpg")
-img_ex_R = cv2.imread("../m_data/aruco/bf/ex/camera1.jpg")
+img_ex_L = cv2.imread("../m_data/aruco/bf/ex/cameraL.jpg")
+img_ex_R = cv2.imread("../m_data/aruco/bf/ex/cameraR.jpg")
+img_ex_ML = cv2.imread("../m_data/aruco/bf/ex/cameraML.jpg")
+img_ex_MR = cv2.imread("../m_data/aruco/bf/ex/cameraMR.jpg")
 in_cfg_path = "./test/external_cfg.json"
 
 # read_frame_state = False
@@ -64,7 +66,7 @@ def read_rtsp_stream(input_para):
 
         if not input_para["read_frame_state"]:
             input_para["read_frame"] = frame.copy()
-            print(f"{input_para["rtsp_url"]} is read one frame")
+            # print(f"{input_para["rtsp_url"]} is read one frame")
             input_para["read_frame_state"] = True
 
         if not input_para["thread_state"]:
@@ -95,7 +97,7 @@ def play_test():
     # thread_state = True
     # read_frame = None
     # read_frame_state = False
-    input_para = {"rtsp_url": rtsp_url_1, "read_frame_state": False, "read_frame": None,
+    input_para = {"rtsp_url": rtsp_url, "read_frame_state": False, "read_frame": None,
                   "thread_state": True, "pause_lock": threading.Lock(), "pause_state": False}
     rtsp_thread = threading.Thread(target=read_rtsp_stream, args=(input_para,))
     rtsp_thread.start()
@@ -120,8 +122,8 @@ def play_test():
 
         wait_count = 0
         img = input_para["read_frame"].copy()
-        # img = cv2.imread("../m_data/aruco/bf/ex/camera0.jpg")
-        img = cv2.imread("charuco_board_0.jpg")
+        # img = cv2.imread("../m_data/aruco/bf/in/L/chessboard_1714387592.jpg")
+        # img = cv2.imread("charuco_board_0.jpg")
         objPoints, imgPoints, charucoIds, img = aruco_tool.charuco_detect(img, True)
         img = cv2.resize(img, (900, 600))
         if objPoints is not None:
@@ -221,7 +223,7 @@ def play_four():
     cv2.destroyAllWindows()
 
 
-def runInCalib_test(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize, aruco_flag=False):
+def runInCalib_test(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize, bNum, aruco_flag=False):
     print("Intrinsic Calibration ......")
     args = InCalibrator.get_args()  # 获取内参标定args参数
     args.INPUT_PATH = imgPath  # 修改为新的参数
@@ -233,7 +235,7 @@ def runInCalib_test(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize
     args.BOARD_HEIGHT = bH
     args.SQUARE_SIZE = bSize
     args.ARUCO_BOARD_SPACER = bSpacer
-    args.aruco_board_num = bNum
+    args.ARUCO_BOARD_NUM = bNum
     args.ARUCO_FLAG = aruco_flag
     args.IMAGE_FILE = ""
     calibrator = InCalibrator(mode)  # 初始化内参标定器
@@ -252,7 +254,7 @@ def runInCalib_test(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize
 def calib_in_aruco():
     mode = "fisheye"
     mode_normal = "normal"
-    precision = 0.15
+    precision = 0.9
     img_sizeLR_OLD = (2560, 1440)
     img_sizeML = (1920, 1080)
     img_sizeMR = (1920, 1080)
@@ -263,6 +265,7 @@ def calib_in_aruco():
 
     mtxL, distortionL, __, __, reProjectionErrorL = runInCalib_test(mode, filePath + "/L", "chessboard", False,
                                                                     img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize,
+                                                                    bNum,
                                                                     aruco_flag)
     if mtxL is None or distortionL is None or reProjectionErrorL is None:
         return False, f"L NoBoeardError"
@@ -273,6 +276,7 @@ def calib_in_aruco():
     mtxML, distortionML, __, __, reProjectionErrorML = runInCalib_test(mode_normal, filePath + "/ML", "chessboard",
                                                                        False,
                                                                        img_sizeML[0], img_sizeML[1], bW, bH, bSize,
+                                                                       bNum,
                                                                        aruco_flag)
     if mtxML is None or distortionML is None or reProjectionErrorML is None:
         return False, f"L NoBoeardError"
@@ -283,6 +287,7 @@ def calib_in_aruco():
     mtxMR, distortionMR, __, __, reProjectionErrorMR = runInCalib_test(mode_normal, filePath + "/MR", "chessboard",
                                                                        False,
                                                                        img_sizeMR[0], img_sizeMR[1], bW, bH, bSize,
+                                                                       bNum,
                                                                        aruco_flag)
     if mtxMR is None or distortionMR is None or reProjectionErrorMR is None:
         return False, f"L NoBoeardError"
@@ -292,6 +297,7 @@ def calib_in_aruco():
 
     mtxR, distortionR, __, __, reProjectionErrorR = runInCalib_test(mode, filePath + "/R", "chessboard", False,
                                                                     img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize,
+                                                                    bNum,
                                                                     aruco_flag)
     if mtxR is None or distortionR is None or reProjectionErrorR is None:
         return False, f"L NoBoeardError"
@@ -318,30 +324,52 @@ def calib_in_aruco_test():
     print(f"calib OK")
 
 
-def calib_ex_aruco():
+def calib_ex_aruco(img_0, img_1, mode="", save_path_1=None, save_path_2=None):
     check = True
     with open(in_cfg_path, 'r') as file:
         cfg_params = json.load(file)
     ex_calib.set_intrinsic_params(cfg_params)
 
-    ret, rvecs_1, tvecs_1 = ex_calib.calibrate("left", img_ex_L, threshold_min=7, threshold_max=200,
-                                               board_width=bW, board_height=bH,
-                                               square_size=bSize, save_path="../m_data/aruco/ex/camera0.jpg")
+    dirct_1, dirct_2, board_id, prefix = "left", "right", 6, ""  # 双鱼眼标定模式
+    if mode == "left":  # 左边鱼眼+普通标定模式
+        dirct_1, dirct_2, board_id, prefix = "left", "mid_left", 17, "left_"  # 左边鱼眼+普通标定模式
+    elif mode == "right":  # 右边鱼眼+普通标定模式
+        dirct_1, dirct_2, board_id, prefix = "right", "mid_right", 17, "right_"  # 右边鱼眼+普通标定模式
+
+    ex_calib.show_img = np.zeros((3000, 2960, 3))
+
+    ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate(dirct_1, img_0, dic_size=5, dic_num=1000, board_width=bW,
+                                               board_height=bH, board_spacer=1, board_id=board_id,
+                                               square_size=bSize, board_num=20,
+                                               save_path=save_path_1, check_mode=True)
+
     if not ret:
         return
     print("L ex calib ok")
 
-    ret, rvecs_2, tvecs_2 = ex_calib.calibrate("right", img_ex_R, threshold_min=7, threshold_max=200,
-                                               board_width=bW, board_height=bH,
-                                               square_size=bSize, save_path="../m_data/aruco/ex/camera1.jpg")
+    ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate(dirct_2, img_1, dic_size=5, dic_num=1000, board_width=bW,
+                                               board_height=bH, board_spacer=1, board_id=board_id,
+                                               square_size=bSize, board_num=20,
+                                               save_path=save_path_2, check_mode=True)  # "../m_data/aruco/ex/camera1.jpg")
+
+    common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
+    # 输出具有相同键的元素
+    distance = 0.0
+    distance_count = 0
+    for key in common_keys:
+        distance += np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key])**2))
+        distance_count += 1
+    distance /= distance_count
+    print(f"distance : {distance}")
+
     if not ret:
         return
     print("R ex calib ok")
 
-    cfg_params['rvecs_1'] = rvecs_1.flatten().tolist()
-    cfg_params['tvecs_1'] = tvecs_1.flatten().tolist()
-    cfg_params['rvecs_2'] = rvecs_2.flatten().tolist()
-    cfg_params['tvecs_2'] = tvecs_2.flatten().tolist()
+    cfg_params[prefix + 'rvecs_1'] = rvecs_1.flatten().tolist()
+    cfg_params[prefix + 'tvecs_1'] = tvecs_1.flatten().tolist()
+    cfg_params[prefix + 'rvecs_2'] = rvecs_2.flatten().tolist()
+    cfg_params[prefix + 'tvecs_2'] = tvecs_2.flatten().tolist()
 
     result_json = json.dumps(cfg_params, indent=4)
     print("JSON serialization successful.")
@@ -360,12 +388,58 @@ def calib_ex_aruco():
 def calib_ex_aruco_test():
     cmd = f"xcopy /E/Y ..\\m_data\\aruco\\bf\\ex ..\\m_data\\aruco\\ex"
     os.system(cmd)
-    calib_ex_aruco()
+    calib_ex_aruco(img_ex_L, img_ex_R, save_path_1="../m_data/aruco/ex/cameraL.jpg",
+                   save_path_2="../m_data/aruco/ex/cameraR.jpg")
+    calib_ex_aruco(img_ex_L, img_ex_ML, "left", "../m_data/aruco/ex/cameraL_L.jpg", "../m_data/aruco/ex/cameraML_L.jpg")
+
     print(f"calib OK")
 
 
 def stitch_test(frame_1, frame_2, ex_internal_data_path):
-    frame_1 = np.zeros_like(frame_1)
+    # frame_1 = np.zeros_like(frame_1)
+    path_fisheye_dll = "../lib3rd/fisheye/video_fuse.dll"
+    fisheye_dll = ctypes.CDLL(path_fisheye_dll)
+
+    internal_data_path = ex_internal_data_path.encode(encoding="utf-8", errors="ignore")
+    fisheye_dll.fisheye_initialize(internal_data_path)
+    fisheye_dll.fisheye_external_initialize(internal_data_path)
+
+    height = 1200
+    width = 1600
+
+    fisheye_dll.fisheye_run_yuv.restype = ctypes.c_char_p
+
+    frame_1_stitch = np.zeros(dtype=np.uint8, shape=(height, width, 3))
+    frame_2_stitch = np.zeros(dtype=np.uint8, shape=(height, width, 3))
+
+    fisheye_dll.fisheye_set_winpos(22)
+    fisheye_dll.fisheye_run_yuv_separate(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                         , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                         , frame_1_stitch.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                         , frame_2_stitch.ctypes.data_as(C.POINTER(C.c_ubyte)))
+
+    ex_calib.get_corners(frame_1_stitch, dic_size=5, dic_num=1000, board_width=bW,
+                         board_height=bH, board_spacer=1, threshold_min=432, threshold_max=503,
+                         square_size=bSize, board_num=20,
+                         save_path=None)
+    imgPoints_1 = ex_calib.imgPoints
+    temp_id_list_1 = ex_calib.temp_id_list
+
+    ex_calib.get_corners(frame_2_stitch, dic_size=5, dic_num=1000, board_width=bW,
+                         board_height=bH, board_spacer=1, threshold_min=432, threshold_max=503,
+                         square_size=bSize, board_num=20,
+                         save_path=None)
+    imgPoints_2 = ex_calib.imgPoints
+    temp_id_list_2 = ex_calib.temp_id_list
+
+    # stitch_image = cv2.resize(frame_1_stitch, (1600, 800))
+    cv2.imshow("frame_1_stitch", frame_1_stitch)
+    cv2.imshow("frame_2_stitch", frame_2_stitch)
+    cv2.waitKey(0)
+
+
+def stitch_show(frame_1, frame_2, ex_internal_data_path):
+    # frame_1 = np.zeros_like(frame_1)
     path_fisheye_dll = "../lib3rd/fisheye/video_fuse.dll"
     fisheye_dll = ctypes.CDLL(path_fisheye_dll)
 
@@ -394,6 +468,6 @@ if __name__ == '__main__':
     # gen_test()
     # calib_in_aruco_test()
     # calib_ex_aruco_test()
-    # stitch_test(img_ex_L, img_ex_R, in_cfg_path)
-    # play_test()
-    play_four()
+    # stitch_show(img_ex_L, img_ex_R, in_cfg_path)
+    play_test()
+    # play_four()

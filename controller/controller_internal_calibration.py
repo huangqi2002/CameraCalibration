@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import shutil
 import threading
 from functools import partial
 
@@ -10,8 +11,9 @@ from PyQt5.QtCore import pyqtSignal, QTimer
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtWidgets import QLabel
 
-from controller.controller_base_tab import BaseControllerTab, lists_equal
+from controller.controller_base_tab import BaseControllerTab, lists_equal, calibrate_para_gen
 from model.app import app_model
+from server.external.ex_Calib import ex_calib
 from server.internal.boardSplit import getBoardPosition
 from server.internal.internal_server import *
 from server.web.web_server import *
@@ -39,6 +41,10 @@ class InternalCalibrationController(BaseControllerTab):
     reboot_finish_signal = pyqtSignal(int)
     start_video_fg_once = pyqtSignal()
     signal_reboot_device = pyqtSignal()
+    one_click_thread_event = None
+    one_click_thread = None
+    direction_list = None
+    screeshot_buttom_timer = None
 
     def __init__(self, base_view, base_model=None):
         super().__init__(base_view, base_model)
@@ -72,12 +78,16 @@ class InternalCalibrationController(BaseControllerTab):
         # 绑定配置文件中的相机与去显示的lable
         # app_model.camera_list
         self.bind_label_and_timer("left", self.view.label_video_fg, 0)  # 270)
-        self.view.set_position_type_button_enable(0)
+        self.view.set_position_type_button_enable(self.position_index)
         # self.bind_label_and_timer("middle_left", self.view.label_video_fg, 270)
         # self.bind_label_and_timer("middle_right", self.view.label_video_fg, 270)
         # self.bind_label_and_timer("right", self.view.label_video_fg, 270)
 
         self.direction_list = ["left", "middle_left", "middle_right", "right", "all"]
+
+        # 控制一键标定进程
+        self.one_click_thread = False
+        self.one_click_thread_event = threading.Event()
 
     # 切换设备类型
     def on_change_device_type(self, device_type):
@@ -103,6 +113,7 @@ class InternalCalibrationController(BaseControllerTab):
             sn = app_model.device_model.sn
             if not sn:
                 self.log.log_err("sn获取失败")
+                self.view.set_start_button_enable(True)
                 return
 
             internal_data_path = os.path.join(app_model.work_path_internal, sn)
@@ -111,9 +122,11 @@ class InternalCalibrationController(BaseControllerTab):
             self.internal_data_path = internal_data_path
 
         if not self.internal_data_path:
+            self.view.set_start_button_enable(True)
             return
 
         if self.work_thread_state:
+            self.view.set_start_button_enable(True)
             return
 
         self.work_thread_state = True
@@ -122,6 +135,73 @@ class InternalCalibrationController(BaseControllerTab):
         self.work_thread.start()
         # 弹出对话框，进制界面操作
         # self.view.show_loading(msg="正在处理内参计算...")
+
+    # 开始标定外参
+    def on_start_ex(self, internal_path=None):
+        self.view.set_start_button_enable(False)
+        ## 创建目录
+        sn = app_model.device_model.sn
+        if not sn:
+            self.log.log_err("sn获取失败")
+            self.view.set_start_button_enable(True)
+            self.view.set_screenshot_button_enable(True)
+            return
+
+        external_data_path = os.path.join(app_model.work_path_external, sn)
+        if not os.path.exists(external_data_path):
+            os.makedirs(external_data_path)
+        self.external_data_path = external_data_path
+
+        if not self.external_data_path:
+            self.view.set_start_button_enable(True)
+            self.view.set_screenshot_button_enable(True)
+            return
+        # ML_L
+        if internal_path is not None:
+            for key, values in {'L': ['L', "L_L"], 'ML': ["ML_L"], 'MR': ["MR_R"], 'R': ['R', "R_R"]}.items():
+                for value in values:
+                    source_file = f"{internal_path}\\{key}\\chessboard_{key}.jpg"
+                    target_file = f"{self.external_data_path}\\chessboard_{value}.jpg"
+                    shutil.copy(source_file, target_file)
+                    print(f"Successfully copied {source_file} to {target_file}")
+
+        if self.work_thread_state:
+            self.view.set_start_button_enable(True)
+            self.view.set_screenshot_button_enable(True)
+            return
+
+        self.work_thread_state = True
+        # 创建线程执行任务
+        self.work_thread = threading.Thread(target=self.get_ex_stitch, daemon=True)
+        self.work_thread.start()
+        # 弹出对话框，进制界面操作
+        # self.view.show_loading(msg="正在处理内参计算...")
+
+    def get_ex_stitch(self):
+        cfg_params = super().get_ex_stitch()
+        # 保存文件
+        try:
+            result_json = json.dumps(cfg_params, indent=4)
+            print("JSON serialization successful.")
+        except Exception as e:
+            print(f"An error occurred during JSON serialization: {e}")
+        self.save_external_file(result_json)
+        self.show_message_signal.emit(True, "参数保存本地成功")
+        print("save_external_file success")
+
+        # 上传文件
+        self.show_message_signal.emit(True, "上传拼接结果")
+        filename = "external_cfg.json"
+        result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
+                                  f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
+        if not result:
+            self.show_message_signal.emit(False, "上传拼接文件失败")
+            server.logout()
+        else:
+            self.show_message_signal.emit(True, "上传拼接文件成功")
+            self.show_message_signal.emit(True, "标定完成")
+
+        self.view.set_screenshot_button_enable(True)
 
     # 截图相机位置切换槽函数
     def position_play(self):
@@ -144,8 +224,9 @@ class InternalCalibrationController(BaseControllerTab):
         self.show_message_signal.emit(True, self.view.position_type_text[self.position_index] + "相机截图")
         # 更改显示视频
         if index != 4:
-            self.start_video_unique(self.direction_list[index], self.view.label_video_fg, 0)
-        else:# 全视野截图
+            self.start_video_unique([{"direction": self.direction_list[index],
+                                      "label": self.view.label_video_fg, "rotate": 0}])
+        else:  # 全视野截图
             self.start_video_all(self.direction_list, self.view.label_video_fg, 0)
 
         # self.start_video_fg_once.emit()
@@ -165,6 +246,7 @@ class InternalCalibrationController(BaseControllerTab):
             sn = app_model.device_model.sn
             if not sn:
                 self.log.log_err("sn获取失败")
+                self.view.set_screenshot_button_enable(True)
                 return
 
             internal_data_path = os.path.join(app_model.work_path_internal, sn)
@@ -174,15 +256,21 @@ class InternalCalibrationController(BaseControllerTab):
             self.internal_data_path = internal_data_path
 
         if not self.internal_data_path:
+            self.view.set_screenshot_button_enable(True)
+
             return
 
         if self.work_thread_state:
+            self.view.set_screenshot_button_enable(True)
             return
 
         self.work_thread_state = True
         # 创建线程执行任务
         self.view.undistorted_checkBox.setChecked(False)
-        self.work_thread = threading.Thread(target=self.save_screenshot, daemon=True)
+        if self.view.position_type_text[self.position_index] != "全视野":
+            self.work_thread = threading.Thread(target=self.save_screenshot, daemon=True)
+        else:
+            self.work_thread = threading.Thread(target=self.one_click_calibration, daemon=True)
         self.work_thread.start()
 
     # 去畸变按钮槽函数
@@ -256,7 +344,7 @@ class InternalCalibrationController(BaseControllerTab):
         internal_data_path_r = os.path.join(self.internal_data_path, "R")
         if not os.path.exists(internal_data_path_r):
             os.makedirs(internal_data_path_r)
-        filename = f"ispPlayer_{int(time.time())}.jpg"
+        filename = f"chessboard_{int(time.time())}.jpg"
         ## 截图
         left_pic_path = os.path.join(internal_data_path_l, filename)
         middle_pic_path = os.path.join(internal_data_path_m, filename)
@@ -283,7 +371,7 @@ class InternalCalibrationController(BaseControllerTab):
         print(f"\n{internal_data_path}\n")
         self.create_path_new(internal_data_path)
 
-        filename = f"ispPlayer_{int(time.time())}.jpg"
+        filename = f"chessboard_{int(time.time())}.jpg"
         pic_path = os.path.join(internal_data_path, filename)
         # 读取文件并保存
         if m_global.m_connect_local:
@@ -319,6 +407,78 @@ class InternalCalibrationController(BaseControllerTab):
         self.view.set_screenshot_button_enable(True)
         self.work_thread_state = False
 
+    def save_frame_all(self):
+        path_name_list = ["L", "ML", "MR", "R"]
+        for position_index in range(len(path_name_list)):
+            # 创建截图保存路径，存在则清空并重新创建
+            internal_data_path = os.path.join(self.internal_data_path, path_name_list[position_index])
+            # print(f"\n{internal_data_path}\n")
+            self.create_path_new(internal_data_path)
+
+            # 保存截图
+            # filename = f"chessboard_{int(time.time())}.jpg"
+            filename = f"chessboard_{path_name_list[position_index]}.jpg"
+            pic_path = os.path.join(internal_data_path, filename)
+            # 读取文件并保存
+            # print(f"path_name_list[{position_index}]{path_name_list[position_index]}")
+            if m_global.m_connect_local:
+                if path_name_list[position_index] == "L":
+                    frame = cv2.imread("m_data/hqtest/in_L.jpg")
+                elif path_name_list[position_index] == "ML":
+                    frame = cv2.imread("m_data/hqtest/in_ML.jpg")
+                elif path_name_list[position_index] == "MR":
+                    frame = cv2.imread("m_data/hqtest/in_MR.jpg")
+                else:
+                    frame = cv2.imread("m_data/hqtest/in_R.jpg")
+                cv2.imwrite(pic_path, frame)
+            else:
+                ret = app_model.video_server.save_frame(self.direction_list[position_index], pic_path, False)
+                if ret != 0:
+                    self.work_thread_state = False
+                    # self.view.set_screenshot_button_enable(True)
+                    return -1
+
+            # 将截图在lable中进行显示
+            self.show_image_fg_signal.emit(position_index * 2, pic_path)
+
+            if path_name_list[position_index] not in self.screenshot_lable_ok:
+                self.screenshot_count += 1
+                self.screenshot_lable_ok.append(path_name_list[position_index])
+                # print(f"\n{self.screenshot_count}\n")
+                if self.screenshot_count == 4:
+                    self.view.set_start_button_enable(True)
+        # self.view.set_screenshot_button_enable(True)
+        self.work_thread_state = False
+        return 0
+
+    def cali_ex_cfg(self):
+        left_para = calibrate_para_gen(direction="left", dic_size=5, dic_num=1000, board_width=7,
+                                       board_height=4, board_spacer=1, threshold_min=7, threshold_max=200,
+                                       square_size=50, board_num=10,
+                                       save_path=None)
+
+    def one_click_calibration(self):
+        ret = self.save_frame_all()
+        if ret != 0:
+            self.view.set_screenshot_button_enable(True)
+            return
+        # 标定内参
+        self.on_start()
+
+        print("------------------------------wait")
+        self.one_click_thread_event.clear()
+        self.one_click_thread_event.wait()
+        print("------------------------------end wait")
+        if not self.one_click_thread:
+            self.view.set_screenshot_button_enable(True)
+            return
+        self.view.set_screenshot_button_enable(False)
+
+        print("\n开始标定外参")
+        # 标定外参
+        self.on_start_ex(self.internal_data_path)
+        # self.cali_ex_cfg()
+
     # 自动保存帧(fg)
     def save_screenshot_auto(self):
         path_name_list = ["L", "ML", "MR", "R"]
@@ -330,7 +490,7 @@ class InternalCalibrationController(BaseControllerTab):
             self.screeshot_buttom_timer.stop()
             self.view.set_screenshot_button_enable(False)
             # self.screenshot_count = 0
-            self.start_video_unique("left", self.view.label_video_fg, 0)
+            self.start_video_unique([{"direction": "left", "label": self.view.label_video_fg, "rotate": 0}])
             self.start_video_fg_once.emit()
             self.view.set_screenshot_button_text(self.screenshot_count)
             self.get_inter_stitch()
@@ -338,7 +498,7 @@ class InternalCalibrationController(BaseControllerTab):
         internal_data_path = os.path.join(self.internal_data_path, path_name_list[direction_type])
         if not os.path.exists(internal_data_path):
             os.makedirs(internal_data_path)
-        filename = f"ispPlayer_{int(time.time())}.jpg"
+        filename = f"chessboard_{int(time.time())}.jpg"
         ## 截图
         pic_path = os.path.join(internal_data_path, filename)
         # if True:
@@ -360,17 +520,18 @@ class InternalCalibrationController(BaseControllerTab):
         ## 图像分割
         getBoardPosition(pic_path, (11, 8), internal_data_path, self.screenshot_count % 2)
         if self.screenshot_count == 1:
-            self.start_video_unique("middle_left", self.view.label_video_fg, 0)
+            self.start_video_unique([{"direction": "middle_left", "label": self.view.label_video_fg, "rotate": 0}])
             self.start_video_fg_once.emit()
             self.show_message_signal.emit(True, "最左相机截图")
 
         elif self.screenshot_count == 3:
-            self.start_video_unique("middle_right", self.view.label_video_fg, 0)
+            self.start_video_unique([{"direction": "middle_right", "label": self.view.label_video_fg, "rotate": 0}])
             self.start_video_fg_once.emit()
             self.show_message_signal.emit(True, "最右相机截图")
 
         elif self.screenshot_count == 5:
-            self.start_video_unique("right", self.view.label_video_fg, 0)
+            self.start_video_unique([{"direction": "right", "label": self.view.label_video_fg, "rotate": 0}])
+
             self.start_video_fg_once.emit()
             self.show_message_signal.emit(True, "右相机截图")
         self.work_thread_state = False
@@ -406,6 +567,9 @@ class InternalCalibrationController(BaseControllerTab):
         if not result:
             self.show_message_signal.emit(False, "内参计算失败")
             self.work_thread_state = False
+            self.one_click_thread = True
+            print("one_click_thread_event set 1")
+            self.one_click_thread_event.set()
             return
         self.screenshot_count = 0
         self.screenshot_lable_ok = []
@@ -444,7 +608,7 @@ class InternalCalibrationController(BaseControllerTab):
         # self.view.close_loading()
         self.show_message_signal.emit(False, f"内参处理" + error_msg)
         if error_msg.startswith('内参获取失败：L'):
-            self.screenshot_lable_ok.remove('内参获取失败：L')
+            self.screenshot_lable_ok.remove('L')
             self.view.set_position_type_button_enable(0)
             self.on_position_type_changed(0)
         elif error_msg.startswith('内参获取失败：ML'):
@@ -464,6 +628,10 @@ class InternalCalibrationController(BaseControllerTab):
         self.work_thread_state = False
         self.view.set_screenshot_button_enable(True)
         # self.show_image_fg_signal.emit(-1, "")
+
+        self.one_click_thread = False
+        print("one_click_thread_event set 2")
+        self.one_click_thread_event.set()
 
     # 保存内参参数到本地
     @staticmethod
@@ -497,23 +665,36 @@ class InternalCalibrationController(BaseControllerTab):
         self.work_thread.start()
 
     # 上传内参
-    def upload_file(self, device_ip, internal_file):
+    def upload_file(self, device_ip, upload_file, upload_path="/mnt/usr/kvdb/usr_data_kvdb/inter_cfg", check_mode=-1):
+        ret = False
         if not device_ip:
             self.show_message_signal.emit(False, "数据上传:设备IP异常")
-            return
-
-        if not server or not server.login(device_ip):
+        elif not server or not server.login(device_ip):
             self.show_message_signal.emit(False, "数据上传:设备登录失败")
-            return
-
-        if server.upload_file(filename=internal_file, upload_path="/mnt/usr/kvdb/usr_data_kvdb/inter_cfg"):
-            if self.check_internal_cfg(internal_file):
+        elif server.upload_file(filename=upload_file, upload_path=upload_path):
+            if check_mode == -1:
                 self.show_message_signal.emit(True, "数据上传成功")
-                self.reset_factory()
-                return
+                self.work_thread_state = False
+                ret = True
+            elif check_mode == 0 and self.check_internal_cfg(upload_file):
+                self.show_message_signal.emit(True, "数据上传成功")
+                self.work_thread_state = False
+                self.show_message_signal.emit(True, "内参标定完成")
+                ret = True
+            elif check_mode == 1 and self.check_external_cfg(upload_file):
+                self.show_message_signal.emit(True, "数据上传成功")
+                self.work_thread_state = False
+                self.show_message_signal.emit(True, "外参标定完成")
+                ret = True
+            server.logout()
+        else:
+            self.show_message_signal.emit(False, "数据上传失败")
+            server.logout()
 
-        self.show_message_signal.emit(False, "数据上传失败")
-        server.logout()
+        self.one_click_thread = True
+        print("one_click_thread_event set 3")
+        self.one_click_thread_event.set()
+        return ret
 
     def check_internal_cfg(self, local_internal_cfg_path):
         return True

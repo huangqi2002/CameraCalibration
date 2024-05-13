@@ -111,7 +111,7 @@ class DeviceServer:
             print("get_factory_mode: exception", e)
 
     def upload_file(self, url="/upload.php", upload_path="", filename=""):
-        print(f"fupload ilename={filename}, upload_path={upload_path}")
+        print(f"fupload filename={filename}, upload_path={upload_path}")
         if not self.device:
             return False
         name = filename.replace('\\', '/').split("/")[-1]
@@ -126,7 +126,7 @@ class DeviceServer:
         headers['Content-Type'] = e.content_type
 
         try:
-            post(device=self.device, url=url, data=e, headers=headers, timeout=120)
+            result = post(device=self.device, url=url, data=e, headers=headers, timeout=120)
             return True
         except Exception as e:
             print("upload_file exception:", e)

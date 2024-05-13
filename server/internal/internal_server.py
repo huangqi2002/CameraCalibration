@@ -6,9 +6,10 @@ import numpy as np
 
 # from server.internal.ExtrinsicCalibration import ExCalibrator
 from server.internal.IntrinsicCalibration.intrinsicCalib import InCalibrator, CalibMode
+from utils import m_global
 
 
-def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize, aruco_flag=False):
+def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize, bSpacer, bNum, aruco_flag=False):
     print("Intrinsic Calibration ......")
     args = InCalibrator.get_args()  # 获取内参标定args参数
     args.INPUT_PATH = imgPath  # 修改为新的参数
@@ -19,6 +20,8 @@ def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize, a
     args.BOARD_WIDTH = bW
     args.BOARD_HEIGHT = bH
     args.SQUARE_SIZE = bSize
+    args.ARUCO_BOARD_SPACER = bSpacer
+    args.ARUCO_BOARD_NUM = bNum
     args.ARUCO_FLAG = aruco_flag
     calibrator = InCalibrator(mode)  # 初始化内参标定器
     calib = CalibMode(calibrator, 'image', 'auto')  # 选择标定模式
@@ -51,47 +54,50 @@ def create_internal(img_size, mtx, distortion):
 def stitch_test(filePath):
     mode = "fisheye"
     mode_normal = "normal"
-    precision = 0.1
+    precision = 0.15
     img_sizeLR_OLD = (2560, 1440)
     img_sizeML = (1920, 1080)
     img_sizeMR = (1920, 1080)
     img_sizeLR_NEW = (2960, 1664)
     # img_sizeML = img_sizeMR = img_sizeLR_NEW
-    aruco_flag = False
+    aruco_flag = True
+    bW = m_global.bW
+    bH = m_global.bH
+    bSize = m_global.bSize
+    bSpacer = m_global.bSpacer
+    bNum = m_global.bNum
 
-    print(1)
     mtxL, distortionL, __, __, reProjectionErrorL = runInCalib_2(mode, filePath + "/L", "chessboard", False,
-                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 25, aruco_flag)
-    print(2)
+                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize, bSpacer, bNum, aruco_flag)
     if mtxL is None or distortionL is None or reProjectionErrorL is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorL >= precision:
         return False, f"L ReProjectionError: {reProjectionErrorL}"
-    print(f"L ReProjectionError: {reProjectionErrorL}")
+    print(f"L Intrinsic Calibration Ok\n")
 
     mtxML, distortionML, __, __, reProjectionErrorML = runInCalib_2(mode_normal, filePath + "/ML", "chessboard", False,
-                                                                    img_sizeML[0], img_sizeML[1], 11, 8, 25, aruco_flag)
+                                                                    img_sizeML[0], img_sizeML[1], bW, bH, bSize, bSpacer, bNum, aruco_flag)
     if mtxML is None or distortionML is None or reProjectionErrorML is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorML >= precision:
-        return False, f"M ReProjectionError: {reProjectionErrorML}"
-    print(f"ML ReProjectionError: {reProjectionErrorML}")
+        return False, f"M ReProjectionError"
+    print(f"ML Intrinsic Calibration Ok\n")
 
     mtxMR, distortionMR, __, __, reProjectionErrorMR = runInCalib_2(mode_normal, filePath + "/MR", "chessboard", False,
-                                                                    img_sizeMR[0], img_sizeMR[1], 11, 8, 25, aruco_flag)
+                                                                    img_sizeMR[0], img_sizeMR[1], bW, bH, bSize, bSpacer, bNum, aruco_flag)
     if mtxMR is None or distortionMR is None or reProjectionErrorMR is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorMR >= precision:
         return False, f"M ReProjectionError: {reProjectionErrorMR}"
-    print(f"MR ReProjectionError: {reProjectionErrorMR}")
+    print(f"MR Intrinsic Calibration Ok\n")
 
     mtxR, distortionR, __, __, reProjectionErrorR = runInCalib_2(mode, filePath + "/R", "chessboard", False,
-                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], 11, 8, 25, aruco_flag)
+                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize, bSpacer, bNum, aruco_flag)
     if mtxR is None or distortionR is None or reProjectionErrorR is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorR >= precision:
         return False, f"R ReProjectionError: {reProjectionErrorR}"
-    print(f"R ReProjectionError: {reProjectionErrorR}")
+    print(f"R  Intrinsic Calibration Ok\n")
 
     left_calib = create_internal(img_sizeLR_NEW, mtxL, distortionL)
     mid_left_calib = create_internal(img_sizeML, mtxML, distortionML)
@@ -112,4 +118,4 @@ def get_stitch(file_path, success_signal, error_signal):
             error_signal.emit(f"内参获取失败：{result}")
     except Exception as e:
         error_signal.emit(f"内参获取失败：{e}")
-    print("get_stitch")
+    # print("get_stitch")

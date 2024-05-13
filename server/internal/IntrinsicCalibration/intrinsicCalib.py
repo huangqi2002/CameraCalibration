@@ -90,6 +90,7 @@ class Fisheye:
         data.camera_mat = np.array(
             [[1062.267560, 0.000000, 1501.057278], [0.000000, 1062.212564, 867.887492], [0.000000, 0.000000, 1.000000]])
         data.dist_coeff = np.array([[-0.018123981144576858], [-0.0026101267970621823], [0.0006215782316954739], [-0.00030905667520437564]])
+        print(f"corners.size {len(corners)}")
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.fisheye.calibrate(
             board, corners, frame_size, data.camera_mat, data.dist_coeff,
             flags=cv2.fisheye.CALIB_FIX_SKEW | cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC | cv2.CALIB_USE_INTRINSIC_GUESS,
@@ -157,6 +158,7 @@ class Normal:
         data.dist_coeff = np.array(
             [[-0.404256259818931], [0.21922420928359876], [-0.00016181802429342013], [-7.126641144546051e-05],
              [-0.06924570764420157]])
+        print(f"corners.size {len(corners)}")
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.calibrateCamera(
             board, corners, frame_size, data.camera_mat, data.dist_coeff,
             flags=cv2.CALIB_USE_INTRINSIC_GUESS,
@@ -230,6 +232,9 @@ class InCalibrator:
                                       (args.BOARD_HEIGHT + 1) * args.ARUCO_BOARD_NUM + args.ARUCO_BOARD_SPACER * (
                                                   args.ARUCO_BOARD_NUM - 1)))
 
+        # aruco_tool.set_aruco_dictionary(5, 1000)
+        # aruco_tool.set_charuco_board((10, 159))
+
         ret_img_bool = False
         if save_path is not None:
             ret_img_bool = True
@@ -252,14 +257,14 @@ class InCalibrator:
                 temp_img_point_list[temp_ids] = np.vstack([temp_img_point_list[temp_ids], img_point[0].reshape(1, 1,-1)])
 
         # 过滤掉为空的组
-        obj_point_ndarray = [arr.astype(np.float32) for arr in temp_obj_point_list if arr.size > 0]
+        obj_point_ndarray = [arr.astype(np.float32) for arr in temp_obj_point_list if arr.size > 10 * 3]
         for group in obj_point_ndarray:
             first_element_points = group[0].copy()  # 获取第一个元素的值
             for i in range(0, len(group)):  # 遍历除第一个元素外的其他元素
                 points = group[i]
                 group[i] = points - first_element_points
 
-        img_point_ndarray = [arr.astype(np.float32) for arr in temp_img_point_list if arr.size > 0]
+        img_point_ndarray = [arr.astype(np.float32) for arr in temp_img_point_list if arr.size > 10 * 2]
 
         if ret_img_bool:
             # temp_img = cv2.resize(ret_img, (800, 600))
@@ -377,6 +382,7 @@ class CalibMode():
             for filename in filenames:
                 print(filename)
                 raw_frame = cv2.imread(filename)
+                filename = filename.replace("chessboard", "result")
                 result = self.runCalib(raw_frame, filepath=filename)
                 # key = cv2.waitKey(1)
                 # if key == 27: break

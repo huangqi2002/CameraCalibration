@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_TabInternalCalibration(object):
     def setupUi(self, TabInternalCalibration):
         TabInternalCalibration.setObjectName("TabInternalCalibration")
-        TabInternalCalibration.resize(847, 515)
+        TabInternalCalibration.resize(880, 515)
         TabInternalCalibration.setMaximumSize(QtCore.QSize(1920, 1048))
         self.verticalLayout_4 = QtWidgets.QVBoxLayout(TabInternalCalibration)
         self.verticalLayout_4.setObjectName("verticalLayout_4")

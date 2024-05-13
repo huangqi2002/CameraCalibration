@@ -18,6 +18,13 @@ class TabVideoCalibration(BaseView, Ui_TabVideoCalibration):
         self.label_video_middle.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.label_video_right.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
+        self.pushButton_play_list = [self.pushButton_left_play, self.pushButton_middle_play, self.pushButton_right_play]
+        self.position_type_text = ["左", "中", "右"]
+        for pushButton_play, type_text in zip(self.pushButton_play_list, self.position_type_text):
+            pushButton_play.setStyleSheet("QPushButton{ background-color: #444; color: #999; }"
+                                          "QPushButton:pressed { background-color: #666; }"
+                                          "QPushButton:disabled  { background-color: #FFF; color: #000; }")
+
     def set_video_left(self, video_data):
         self.label_video_left.setPixmap(video_data)
 
@@ -70,3 +77,14 @@ class TabVideoCalibration(BaseView, Ui_TabVideoCalibration):
             proportion = proportion_w
         pixmap.setDevicePixelRatio(proportion)
         return pixmap
+
+    def set_position_type_button_enable(self, index):
+        for i in range(len(self.pushButton_play_list)):
+            if i == index:
+                self.pushButton_play_list[i].setEnabled(False)
+            else:
+                self.pushButton_play_list[i].setEnabled(True)
+
+    def set_start_button_enable(self, enable):
+        self.pushButton_start.setEnabled(enable)
+        # self.pushButton_screenshot.setVisible(enable)

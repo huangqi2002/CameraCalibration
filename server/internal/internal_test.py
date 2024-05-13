@@ -91,7 +91,7 @@ def stitch_test(filePath):
 def dup_mapToFile(path, mapX, mapY):
     mapX = mapX.reshape(-1, 1)
     mapY = mapY.reshape(-1, 1)
-    print(mapX[0], mapY[0])
+    # print(mapX[0], mapY[0])
     map = np.hstack((mapX, mapY))
     map = map.flatten()
     mapfile = open(path, 'wb')

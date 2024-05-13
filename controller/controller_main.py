@@ -36,7 +36,10 @@ class MainController(BaseController):
         self.init_parameter() # 初始化参数
 
         # 初始化选择标定拼接Tab以及FG类型
-        self.view.switch_tab_index(1)
+        self.view.switch_tab_index(0)
+
+        self.internal_calibration_controller.view.set_position_type_button_enable(4)
+        self.internal_calibration_controller.on_position_type_changed(4)
         self.on_change_device_type("FG")
 
     # 读取配置文件，初始化model
@@ -144,6 +147,14 @@ class MainController(BaseController):
     def init_parameter(self):
         m_global.m_connect_local = app_model.config_fg.get("m_connect_local")
         m_global.m_global_debug = app_model.config_fg.get("m_global_debug")
+        m_global.bW = app_model.config_fg.get("bW")
+        m_global.bH = app_model.config_fg.get("bH")
+        m_global.bSize = app_model.config_fg.get("bSize")
+        m_global.bSpacer = app_model.config_fg.get("bSpacer")
+        m_global.bNum = app_model.config_fg.get("bNum")
+        m_global.board_id_fish = app_model.config_fg.get("board_id_fish")
+        m_global.board_id_left = app_model.config_fg.get("board_id_left")
+        m_global.board_id_right = app_model.config_fg.get("board_id_right")
 
     # 设置界面上面message栏显示的信息内容
     def on_show_message(self, status, msg):

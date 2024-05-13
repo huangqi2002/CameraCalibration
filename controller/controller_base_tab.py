@@ -4,12 +4,16 @@ import json
 import os
 import threading
 import time
+from enum import Enum
 from functools import partial
 
 import cv2
+import numpy as np
 from PyQt5.QtCore import QTimer, QObject, pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel
+
+from server.external.ex_Calib import ex_calib
 from utils import m_global
 
 from controller.controller_base import BaseController
@@ -36,15 +40,31 @@ def lists_equal(list1, list2):
     return True
 
 
+def calibrate_para_gen(direction="left", dic_size=5, dic_num=1000, board_width=m_global.bW,
+                       board_height=m_global.bH, board_spacer=m_global.bSpacer, threshold_min=7, threshold_max=200,
+                       square_size=m_global.bSize, board_num=m_global.bNum,
+                       save_path=None):
+    calibrate_para = {"direction": direction, "dic_size": dic_size, "dic_num": dic_num, "board_width": board_width,
+                      "board_height": board_height, "board_spacer": board_spacer, "threshold_min": threshold_min,
+                      "threshold_max": threshold_max, "square_size": square_size, "board_num": board_num,
+                      "save_path": save_path}
+    return calibrate_para
+
+
 class BaseControllerTab(BaseController):
     tab_index = 0
-    current_tab_index = -1
+    current_tab_index = 0
     video_map = {}
 
     show_message_signal = None
     reboot_finish_signal = None
     current_direction = 'left'
     current_cameras = None
+    external_data_path = ""
+
+    stitch_mode_right = 0x001
+    stitch_mode_fisheye = 0x010
+    stitch_mode_left = 0x100
 
     # 绑定配置文件中的相机与去显示的lable
     def bind_label_and_timer(self, direction: str, label: QLabel, rotate):
@@ -82,6 +102,11 @@ class BaseControllerTab(BaseController):
         if connect_state:
             app_model.video_server.pause_all()
             cameras = app_model.video_server.get_cameras()
+            # print(cameras)
+            for key, video in self.video_map.items():
+                if video.timer is not None:
+                    video.timer.stop()
+                    video.timer = None
             self.start_video(cameras)
         else:
             self.parse_video()
@@ -90,7 +115,7 @@ class BaseControllerTab(BaseController):
     # cameras是要播放的相机，其属于video_server，可以读到相机不断变换的帧
     # video_map中记录了相机与对应的定时器
     def start_video(self, cameras):
-        print(f"Timer is begin active:")
+        # print(f"Timer is begin active:")
         if cameras is None:
             return
         for key, video in self.video_map.items():
@@ -116,14 +141,15 @@ class BaseControllerTab(BaseController):
                 print(f"{key} is pause")
 
     # 暂停播放视频，并只播放指定视频
-    def start_video_unique(self, direction: str, label: QLabel, rotate):
+    def start_video_unique(self, video_para_list):  # direction: str, label: QLabel, rotate):
         # def start_video_unique(self, direction: str):
         self.parse_video()
         for key, video in self.video_map.items():
             app_model.video_server.pause(key)
 
         self.video_map = {}
-        self.bind_label_and_timer(direction, label, rotate)
+        for para in video_para_list:
+            self.bind_label_and_timer(para["direction"], para["label"], para["rotate"])
         cameras = app_model.video_server.get_cameras()
         if cameras is None:
             return
@@ -154,7 +180,7 @@ class BaseControllerTab(BaseController):
     def update_frame(self, camera, video):
         # print(f"{camera.rtsp_url} update_frame\n")
         if camera is None or camera.frame is None:
-            # self.log.log_err(f"Tab({self.tab_index}), Invalid camera or frame")
+            # self.log.log_err(f"{camera} Tab({self.tab_index}), Invalid camera or frame")
             return
         if not camera.frame_is_ok:
             return
@@ -162,7 +188,7 @@ class BaseControllerTab(BaseController):
         camera.frame_is_ok = False
 
         if video is None or video.label is None:
-            self.log.log_err(f"Tab({self.tab_index}), Invalid video or label")
+            # self.log.log_err(f"Tab({self.tab_index}), Invalid video or label")
             return
         label = video.label
 
@@ -310,6 +336,174 @@ class BaseControllerTab(BaseController):
     def create_path_new(self, path):
         if os.path.exists(path):
             self.clear_folder(path)
+            print("\n")
         else:
             os.makedirs(path)
         # print(f"mkdir {path}")
+
+        # 标定两目相机之间的外参
+
+    def calib_ex_aruco(self, img_0, img_1, mode="", save_path_1=None, save_path_2=None, cfg_params=None):
+        check = True
+        if cfg_params is None:
+            with open(app_model.config_ex_internal_path, 'r') as file:
+                cfg_params = json.load(file)
+        ex_calib.set_intrinsic_params(cfg_params)
+
+        dirct_1, dirct_2, board_id, prefix = "left", "right", m_global.board_id_fish, ""  # 双鱼眼标定模式
+        if mode == "left":  # 左边鱼眼+普通标定模式
+            dirct_1, dirct_2, board_id, prefix = "left", "mid_left", m_global.board_id_left, "left_"  # 左边鱼眼+普通标定模式
+        elif mode == "right":  # 右边鱼眼+普通标定模式
+            dirct_1, dirct_2, board_id, prefix = "right", "mid_right", m_global.board_id_right, "right_"  # 右边鱼眼+普通标定模式
+
+        ex_calib.show_img = np.zeros((3000, 2960, 3))
+
+        ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate(dirct_1, img_0, dic_size=5, dic_num=1000,
+                                                                 board_width=m_global.bW,
+                                                                 board_height=m_global.bH,
+                                                                 board_spacer=m_global.bSpacer, board_id=board_id,
+                                                                 square_size=m_global.bSize, board_num=m_global.bNum,
+                                                                 save_path=save_path_1, check_mode=True)
+
+        if not ret:
+            return cfg_params
+        print(f"{prefix}{dirct_1} ex calib ok")
+
+        ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate(dirct_2, img_1, dic_size=5, dic_num=1000,
+                                                                 board_width=m_global.bW,
+                                                                 board_height=m_global.bH,
+                                                                 board_spacer=m_global.bSpacer, board_id=board_id,
+                                                                 square_size=m_global.bSize, board_num=m_global.bNum,
+                                                                 save_path=save_path_2,
+                                                                 check_mode=True)  # "../m_data/aruco/ex/camera1.jpg")
+
+        if not ret:
+            return cfg_params
+        print(f"{prefix}{dirct_1} ex calib ok")
+
+        common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
+        # 输出具有相同键的元素
+        distance = 0.0
+        distance_count = 0
+        for key in common_keys:
+            print(np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2)))
+            distance += np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2))
+            distance_count += 1
+        distance /= distance_count
+        print(f"distance : {distance}\n")
+
+        cfg_params[prefix + 'rvecs_1'] = rvecs_1.flatten().tolist()
+        cfg_params[prefix + 'tvecs_1'] = tvecs_1.flatten().tolist()
+        cfg_params[prefix + 'rvecs_2'] = rvecs_2.flatten().tolist()
+        cfg_params[prefix + 'tvecs_2'] = tvecs_2.flatten().tolist()
+        # print(f"{app_model.config_ex_internal_path} read OK")
+        # # print(f" ex_result : {ex_result} ")
+        # try:
+        #     result_json = json.dumps(cfg_params, indent=4)
+        #     print("JSON serialization successful.")
+        # except Exception as e:
+        #     print(f"An error occurred during JSON serialization: {e}")
+        # self.save_external_file(result_json)
+        # print("save_external_file success")
+
+        # # 上传文件
+        # self.show_message_signal.emit(True, "上传拼接结果")
+        # filename = "external_cfg.json"
+        # result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
+        #                           f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
+        # if not result:
+        #     self.show_message_signal.emit(False, "上传拼接文件失败")
+        #     server.logout()
+        # else:
+        #     self.show_message_signal.emit(True, "上传拼接文件成功")
+        #     # self.reboot_device()
+        #     # self.reset_factory_mode()
+        #     # self.signal_reboot_device.emit()
+        #     # self.show_message_signal.emit(True, "标定完成，等待设备重启后查看结果") hqtest
+        #     self.show_message_signal.emit(True, "标定完成")
+        #     # self.reboot_finish_signal.emit(2)
+
+        return cfg_params
+
+        # 进行外参计算
+
+    def get_ex_stitch(self, stitch_mode=stitch_mode_fisheye | stitch_mode_left | stitch_mode_right):
+        self.show_message_signal.emit(True, "开始计算相机外参")
+        cfg_params = None
+        if stitch_mode & self.stitch_mode_fisheye:
+            img_name_1, img_name_2 = "L", "R"
+            img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
+            img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
+            cfg_params = self.calib_ex_aruco(img_ex_1, img_ex_2,
+                                             save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
+                                             save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
+                                             cfg_params=cfg_params)
+        if stitch_mode & self.stitch_mode_left:
+            img_name_1, img_name_2 = "L_L", "ML_L"
+            img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
+            img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
+            cfg_params = self.calib_ex_aruco(img_ex_1, img_ex_2, "left",
+                                             save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
+                                             save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
+                                             cfg_params=cfg_params)
+
+        if stitch_mode & self.stitch_mode_right:
+            img_name_1, img_name_2 = "R_R", "MR_R"
+            img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
+            img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
+            cfg_params = self.calib_ex_aruco(img_ex_1, img_ex_2, "right",
+                                             save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
+                                             save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
+                                             cfg_params=cfg_params)
+
+        return cfg_params
+
+    def save_external_file(self, result=None, file_name="external_cfg.json", external_file_path=None):
+        # print(f"save {file_name}")
+        if not result:
+            return
+        if external_file_path is None:
+            external_file_path = self.external_data_path
+        if not os.path.exists(external_file_path):
+            os.makedirs(external_file_path)
+        external_file = os.path.join(external_file_path, "external_cfg.json")
+        # external_file = external_file.replace('\\', '/')
+        print(f"save {external_file}..........")
+
+        with open(external_file, "w", encoding="utf-8") as f:
+            f.write(result)
+        print(f"save {external_file} OK")
+        # 应用在设备上
+        app_model.video_server.fisheye_external_init(external_file)
+        return external_file
+
+    def check_external_cfg(self, local_external_cfg_path):
+        return True
+        # local_external_cfg_name = local_external_cfg_path.replace('\\', '/')
+        # with open(local_external_cfg_name, 'r') as file:
+        #     local_external_cfg = json.load(file)
+        #
+        # if not local_external_cfg:
+        #     self.show_message_signal.emit(False, "获取设备本地外参文件失败:body")
+        #     return False
+        #
+        # external_cfg_info = server.get_external_cfg()
+        # if not external_cfg_info:
+        #     self.show_message_signal.emit(False, "获取设备外参文件失败")
+        #     return False
+        # external_cfg = external_cfg_info.get("body")
+        # if not external_cfg:
+        #     self.show_message_signal.emit(False, "获取设备外参文件失败:body")
+        #     return False
+        #
+        # # 检查字典长度是否相等
+        # if len(local_external_cfg) != len(external_cfg):
+        #     return False
+        # # 逐一比较字典中的键和值
+        # for key in local_external_cfg.keys():
+        #     if key not in external_cfg:
+        #         return False
+        #     if not lists_equal(local_external_cfg[key], external_cfg[key]):
+        #         return False
+        #
+        # return True

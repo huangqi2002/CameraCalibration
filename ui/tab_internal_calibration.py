@@ -26,7 +26,7 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.pushbotton_text = ["截图（左）", "截图（左）",
                                 "截图（最左）", "截图（最左）",
                                 "截图（最右）", "截图（最右）",
-                                "截图（右）", "截图（右）", "标定"]
+                                "截图（右）", "截图（右）", "一键标定"]
 
         self.pushButton_screenshot.setStyleSheet("QPushButton:pressed { background-color: #666; }"
                                                  "QPushButton:disabled { background-color: #444; color: #999; }")
@@ -47,7 +47,7 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.update()
 
         # 防止界面大小不可调节
-        self.label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.label_video_fg.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
 
     def set_choose_file_visible(self, visible=True):
@@ -146,6 +146,7 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.set_video_middle_visible(visible)
         self.label_img_middle.setVisible(visible)
         self.label_img_spacer.setVisible(visible)
+        # self.pushButton_middle_play.setVisible(visible)
 
     def set_layout_fg(self, visible):
         self.hide_layout_widgets(self.horizontalLayout_fg, visible)

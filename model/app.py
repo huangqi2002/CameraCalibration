@@ -23,7 +23,7 @@ class App:
     is_connected = False
     show_log_view = False
 
-    # 内参路径
+    # 用于求取外参的内参路径
     config_ex_internal_path = None
 
 

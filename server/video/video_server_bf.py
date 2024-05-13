@@ -464,7 +464,7 @@ class VideoServer(QObject):
     @staticmethod
     def update_frame(camera):
         if camera is None or camera.frame is None:
-            print("update_frame, Invalid camera or frame")
+            # print("update_frame, Invalid camera or frame")
             return
         label_size = camera.label.size()
         # print("update_frame, label_size", label_size)
