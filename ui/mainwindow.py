@@ -13,7 +13,7 @@ from ui.tab_video_calibration import TabVideoCalibration
 from ui.tab_video_result import TabVideoResult
 from ui.widget_log_view import WidgetLogView
 
-from utils import m_global
+from utils.run_para import m_global
 
 
 class MainWindow(QtWidgets.QMainWindow, BaseView, Ui_MainWindow):

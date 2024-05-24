@@ -13,16 +13,17 @@ from server.external.ex_Calib import ex_calib
 from internal.IntrinsicCalibration.intrinsicCalib import InCalibrator, CalibMode
 from server.internal.internal_server import create_internal
 
-rtsp_url = "rtsp://192.168.109.90:8557/left_main_1_0"
-rtsp_url_1 = "rtsp://192.168.109.90:8557/out_left_sub_3_1"
-rtsp_url_2 = "rtsp://192.168.109.90:8557/out_right_sub_4_1"
-rtsp_url_3 = "rtsp://192.168.109.90:8557/right_main_2_0"
+rtsp_url = "rtsp://192.168.109.98:8557"
+rtsp_url_0 = rtsp_url + "/left_main_1_0"
+rtsp_url_1 = rtsp_url + "/out_left_sub_3_1"
+rtsp_url_2 = rtsp_url + "/out_right_sub_4_1"
+rtsp_url_3 = rtsp_url + "/right_main_2_0"
 
 img_ex_L = cv2.imread("../m_data/aruco/bf/ex/cameraL.jpg")
 img_ex_R = cv2.imread("../m_data/aruco/bf/ex/cameraR.jpg")
 img_ex_ML = cv2.imread("../m_data/aruco/bf/ex/cameraML.jpg")
 img_ex_MR = cv2.imread("../m_data/aruco/bf/ex/cameraMR.jpg")
-in_cfg_path = "./test/external_cfg.json"
+in_cfg_path = "../configs/internal/external_cfg_90.json"
 
 # read_frame_state = False
 # read_frame = None
@@ -32,6 +33,7 @@ thread_state_event = threading.Event()
 
 bW = 9
 bH = 6
+aruco_dictionary_num = 5
 bSize = 50
 bSpacer = 1
 bNum = 20
@@ -77,7 +79,7 @@ def read_rtsp_stream(input_para):
 
 
 def gen_test():
-    aruco_tool.set_aruco_dictionary(5, 1000)
+    aruco_tool.set_aruco_dictionary(aruco_dictionary_num, 1000)
     img_path = "charuco_board.png"
     board_size = 200
     aruco_tool.set_charuco_board((bW + 1, (bH + 1) * bNum + bSpacer * (bNum - 1)))
@@ -90,14 +92,14 @@ def gen_test():
 
 def play_test():
     global thread_state_event
-    aruco_tool.set_aruco_dictionary(5, 1000)
+    aruco_tool.set_aruco_dictionary(aruco_dictionary_num, 1000)
     aruco_tool.set_charuco_board((bW + 1, (bH + 1) * bNum + bSpacer * (bNum - 1)))
     # aruco_tool.charuco_gen((2400, 17600))
 
     # thread_state = True
     # read_frame = None
     # read_frame_state = False
-    input_para = {"rtsp_url": rtsp_url, "read_frame_state": False, "read_frame": None,
+    input_para = {"rtsp_url": rtsp_url_1, "read_frame_state": False, "read_frame": None,
                   "thread_state": True, "pause_lock": threading.Lock(), "pause_state": False}
     rtsp_thread = threading.Thread(target=read_rtsp_stream, args=(input_para,))
     rtsp_thread.start()
@@ -123,8 +125,10 @@ def play_test():
         wait_count = 0
         img = input_para["read_frame"].copy()
         # img = cv2.imread("../m_data/aruco/bf/in/L/chessboard_1714387592.jpg")
-        # img = cv2.imread("charuco_board_0.jpg")
+        # img = cv2.imread("charuco_board_1.jpg")
+        img = cv2.imread("../m_data/hqtest/R.jpg")
         objPoints, imgPoints, charucoIds, img = aruco_tool.charuco_detect(img, True)
+        cv2.imwrite("aruco_test.jpg", img)
         img = cv2.resize(img, (900, 600))
         if objPoints is not None:
             objPoints = objPoints / 0.25 * board_size
@@ -143,7 +147,7 @@ def play_four():
     global thread_count
     thread_count = 4
 
-    input_para_0 = {"rtsp_url": rtsp_url, "read_frame_state": False, "read_frame": None,
+    input_para_0 = {"rtsp_url": rtsp_url_0, "read_frame_state": False, "read_frame": None,
                     "thread_state": True, "pause_lock": threading.Lock(), "pause_state": False}
     rtsp_thread = threading.Thread(target=read_rtsp_stream, args=(input_para_0,))
     rtsp_thread.start()
@@ -330,34 +334,37 @@ def calib_ex_aruco(img_0, img_1, mode="", save_path_1=None, save_path_2=None):
         cfg_params = json.load(file)
     ex_calib.set_intrinsic_params(cfg_params)
 
-    dirct_1, dirct_2, board_id, prefix = "left", "right", 6, ""  # 双鱼眼标定模式
+    dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "right", False, True, 6, ""  # 双鱼眼标定模式
     if mode == "left":  # 左边鱼眼+普通标定模式
-        dirct_1, dirct_2, board_id, prefix = "left", "mid_left", 17, "left_"  # 左边鱼眼+普通标定模式
+        dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "mid_left", False, False, 17, "left_"  # 左边鱼眼+普通标定模式
     elif mode == "right":  # 右边鱼眼+普通标定模式
-        dirct_1, dirct_2, board_id, prefix = "right", "mid_right", 17, "right_"  # 右边鱼眼+普通标定模式
+        dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "right", "mid_right", True, True, 17, "right_"  # 右边鱼眼+普通标定模式
 
     ex_calib.show_img = np.zeros((3000, 2960, 3))
 
-    ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate(dirct_1, img_0, dic_size=5, dic_num=1000, board_width=bW,
-                                               board_height=bH, board_spacer=1, board_id=board_id,
-                                               square_size=bSize, board_num=20,
-                                               save_path=save_path_1, check_mode=True)
+    ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate_aruco(dirct_1, img_0, dic_size=5, dic_num=1000,
+                                                                   board_width=bW,
+                                                                   board_height=bH, board_spacer=1, board_id=board_id,
+                                                                   square_size=bSize, board_num=20,
+                                                                   save_path=save_path_1, check_mode=True)
 
     if not ret:
         return
     print("L ex calib ok")
 
-    ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate(dirct_2, img_1, dic_size=5, dic_num=1000, board_width=bW,
-                                               board_height=bH, board_spacer=1, board_id=board_id,
-                                               square_size=bSize, board_num=20,
-                                               save_path=save_path_2, check_mode=True)  # "../m_data/aruco/ex/camera1.jpg")
+    ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate_aruco(dirct_2, img_1, dic_size=5, dic_num=1000,
+                                                                   board_width=bW,
+                                                                   board_height=bH, board_spacer=1, board_id=board_id,
+                                                                   square_size=bSize, board_num=20,
+                                                                   save_path=save_path_2,
+                                                                   check_mode=True)  # "../m_data/aruco/ex/camera1.jpg")
 
     common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
     # 输出具有相同键的元素
     distance = 0.0
     distance_count = 0
     for key in common_keys:
-        distance += np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key])**2))
+        distance += np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2))
         distance_count += 1
     distance /= distance_count
     print(f"distance : {distance}")
@@ -418,17 +425,17 @@ def stitch_test(frame_1, frame_2, ex_internal_data_path):
                                          , frame_1_stitch.ctypes.data_as(C.POINTER(C.c_ubyte))
                                          , frame_2_stitch.ctypes.data_as(C.POINTER(C.c_ubyte)))
 
-    ex_calib.get_corners(frame_1_stitch, dic_size=5, dic_num=1000, board_width=bW,
-                         board_height=bH, board_spacer=1, threshold_min=432, threshold_max=503,
-                         square_size=bSize, board_num=20,
-                         save_path=None)
+    ex_calib.get_corners_aruco(frame_1_stitch, dic_size=5, dic_num=1000, board_width=bW,
+                               board_height=bH, board_spacer=1, threshold_min=432, threshold_max=503,
+                               square_size=bSize, board_num=20,
+                               save_path=None)
     imgPoints_1 = ex_calib.imgPoints
     temp_id_list_1 = ex_calib.temp_id_list
 
-    ex_calib.get_corners(frame_2_stitch, dic_size=5, dic_num=1000, board_width=bW,
-                         board_height=bH, board_spacer=1, threshold_min=432, threshold_max=503,
-                         square_size=bSize, board_num=20,
-                         save_path=None)
+    ex_calib.get_corners_aruco(frame_2_stitch, dic_size=5, dic_num=1000, board_width=bW,
+                               board_height=bH, board_spacer=1, threshold_min=432, threshold_max=503,
+                               square_size=bSize, board_num=20,
+                               save_path=None)
     imgPoints_2 = ex_calib.imgPoints
     temp_id_list_2 = ex_calib.temp_id_list
 
@@ -439,8 +446,7 @@ def stitch_test(frame_1, frame_2, ex_internal_data_path):
 
 
 def stitch_show(frame_1, frame_2, ex_internal_data_path):
-    # frame_1 = np.zeros_like(frame_1)
-    path_fisheye_dll = "../lib3rd/fisheye/video_fuse.dll"
+    path_fisheye_dll = "../lib3rd/fisheye/video_fuse_515.dll"
     fisheye_dll = ctypes.CDLL(path_fisheye_dll)
 
     internal_data_path = ex_internal_data_path.encode(encoding="utf-8", errors="ignore")
@@ -464,6 +470,63 @@ def stitch_show(frame_1, frame_2, ex_internal_data_path):
     cv2.waitKey(0)
 
 
+def stitch_show_1(frame_1, frame_2, ex_internal_data_path):
+    # frame_1 = np.zeros_like(frame_1)
+    # frame_1 = np.ones_like(frame_1) * 254
+    # frame_2 = np.zeros_like(frame_2)
+    # frame_1 = np.zeros_like(frame_1)
+    # frame_1[:, :, 2] = 254
+    # frame_2 = np.zeros_like(frame_2)
+
+    path_fisheye_dll = "../lib3rd/fisheye/video_fuse_515.dll"
+    fisheye_dll = ctypes.CDLL(path_fisheye_dll)
+
+    ex_internal_data_path_0 = "../configs/internal/external_cfg_90_L.json"
+    internal_data_path = ex_internal_data_path_0.encode(encoding="utf-8", errors="ignore")
+    fisheye_dll.fisheye_initialize(internal_data_path)
+    fisheye_dll.fisheye_external_initialize(internal_data_path)
+
+    height = 1200
+    width = 1600
+
+    fisheye_dll.fisheye_run_yuv.restype = ctypes.c_char_p
+
+    # frame_2 = np.zeros_like(frame_2)
+    stitch_image_src = np.zeros(dtype=np.uint8, shape=(height, width, 3))
+    fisheye_dll.fisheye_set_winpos(22)
+    fisheye_dll.fisheye_run_yuv(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                , stitch_image_src.ctypes.data_as(C.POINTER(C.c_ubyte)))
+
+    internal_data_path = ex_internal_data_path.encode(encoding="utf-8", errors="ignore")
+    fisheye_dll.fisheye_initialize(internal_data_path)
+    fisheye_dll.fisheye_external_initialize(internal_data_path)
+
+    frame_2 = np.zeros_like(frame_1)
+    frame_2[:, :, 2] = 254
+    frame_1 = np.ones_like(frame_2)
+    stitch_image = np.zeros(dtype=np.uint8, shape=(height, width, 3))
+    fisheye_dll.fisheye_set_winpos(22)
+    fisheye_dll.fisheye_run_yuv(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
+    # 遍历图像的每个像素
+    for y in range(stitch_image.shape[0]):
+        for x in range(stitch_image.shape[1]):
+            # 如果像素点不合法
+            if stitch_image[y, x, 0] != 0 and stitch_image[y, x, 0] == stitch_image[y, x, 2]:
+                # 将该像素设置为黑色（[0, 0, 0]）
+                stitch_image[y, x] = [0, 0, 0]
+
+            stitch_image[y, x, 0] = stitch_image[y, x, 1] = stitch_image[y, x, 2]
+
+            if not np.array_equal(stitch_image[y, x], np.array([0, 0, 0])):
+                stitch_image_src[y, x] = (stitch_image_src[y, x] / 255 * stitch_image[y, x, 0]).astype(np.uint8)
+    stitch_image_src = cv2.resize(stitch_image_src, (1600, 800))
+    cv2.imshow("stitch_image", stitch_image_src)
+    cv2.waitKey(0)
+
+
 if __name__ == '__main__':
     # gen_test()
     # calib_in_aruco_test()
@@ -471,3 +534,7 @@ if __name__ == '__main__':
     # stitch_show(img_ex_L, img_ex_R, in_cfg_path)
     play_test()
     # play_four()
+    # frame_1 = cv2.imread("..\\m_data\\hqtest\\ex_L.jpg")
+    # frame_2 = cv2.imread("..\\m_data\\hqtest\\ex_R.jpg")
+    # stitch_show(frame_1, frame_2, "../configs/internal/external_cfg.json")
+    # stitch_show_1(frame_1, frame_2, "../configs/internal/external_cfg_90.json")

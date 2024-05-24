@@ -13,8 +13,7 @@ from controller.controller_internal_calibration import InternalCalibrationContro
 from controller.controller_video_calibration import VideoCalibrationController
 from controller.controller_video_result import VideoResultController
 from controller.controller_log_view import LogViewController
-from utils import m_global
-
+from utils.run_para import m_global
 
 class MainController(BaseController):
     device_model = None
@@ -149,12 +148,18 @@ class MainController(BaseController):
         m_global.m_global_debug = app_model.config_fg.get("m_global_debug")
         m_global.bW = app_model.config_fg.get("bW")
         m_global.bH = app_model.config_fg.get("bH")
+        m_global.dicSize = app_model.config_fg.get("dicSize")
         m_global.bSize = app_model.config_fg.get("bSize")
         m_global.bSpacer = app_model.config_fg.get("bSpacer")
         m_global.bNum = app_model.config_fg.get("bNum")
         m_global.board_id_fish = app_model.config_fg.get("board_id_fish")
         m_global.board_id_left = app_model.config_fg.get("board_id_left")
         m_global.board_id_right = app_model.config_fg.get("board_id_right")
+        m_global.inter_calib_precision = app_model.config_fg.get("inter_calib_precision")
+        m_global.aruco_flag = app_model.config_fg.get("aruco_flag")
+        m_global.find_type = app_model.config_fg.get("find_type")
+
+
 
     # 设置界面上面message栏显示的信息内容
     def on_show_message(self, status, msg):

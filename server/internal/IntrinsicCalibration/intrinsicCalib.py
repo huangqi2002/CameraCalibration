@@ -48,6 +48,10 @@ parser.add_argument('-resize', '--RESIZE_FLAG', default=False, type=bool,
                     help='Resize Input Video/Image to (fw,fh) (Ture/False)')
 parser.add_argument('-aruco', '--ARUCO_FLAG', default=False, type=bool,
                     help='ARUCO board (Ture/False)')
+parser.add_argument('-find_chessborad_type', '--FIND_TYPE', default=True, type=bool,
+                    help='find chessborad type one/more (Ture/False)')
+parser.add_argument('-calibrate_state', '--CALI_STATE', default=True, type=bool,
+                    help='to calibrate (Ture/False)')
 
 args = parser.parse_args()
 
@@ -63,6 +67,7 @@ class CalibData:
         self.map2 = None
         self.reproj_err = None
         self.ok = False
+        self.check = True
 
 
 class Fisheye:
@@ -73,6 +78,10 @@ class Fisheye:
         #                        for i in range(args.BOARD_HEIGHT)
         #                        for j in range(args.BOARD_WIDTH)], dtype=np.float32)
         self.board = []
+        self.init_camera_mat = np.array(
+            [[1062.267560, 0.000000, 1501.057278], [0.000000, 1062.212564, 867.887492], [0.000000, 0.000000, 1.000000]])
+        self.init_dist_coeff = np.array(
+            [[-0.018123981144576858], [-0.0026101267970621823], [0.0006215782316954739], [-0.00030905667520437564]])
 
     def update(self, corners, frame_size):
         # board = [self.BOARD] * len(corners)
@@ -87,15 +96,35 @@ class Fisheye:
     def _update_init(self, board, corners, frame_size):
         data = self.data
         data.type = "FISHEYE"
-        data.camera_mat = np.array(
-            [[1062.267560, 0.000000, 1501.057278], [0.000000, 1062.212564, 867.887492], [0.000000, 0.000000, 1.000000]])
-        data.dist_coeff = np.array([[-0.018123981144576858], [-0.0026101267970621823], [0.0006215782316954739], [-0.00030905667520437564]])
+        data.camera_mat = self.init_camera_mat
+        data.dist_coeff = self.init_dist_coeff
         print(f"corners.size {len(corners)}")
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.fisheye.calibrate(
             board, corners, frame_size, data.camera_mat, data.dist_coeff,
             flags=cv2.fisheye.CALIB_FIX_SKEW | cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC | cv2.CALIB_USE_INTRINSIC_GUESS,
-            criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 1e-6))
-        data.ok = data.ok and cv2.checkRange(data.camera_mat) and cv2.checkRange(data.dist_coeff)
+            criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 100, 1e-6))
+
+        # 确保两个矩阵具有相同的形状
+        assert data.camera_mat.shape == self.init_camera_mat.shape, "矩阵形状不匹配"
+        # 计算两个矩阵每个元素的差的绝对值
+        abs_diff = np.abs(data.camera_mat - self.init_camera_mat)
+        # 计算init矩阵对应位置的阈值
+        threshold = 0.15 * np.abs(self.init_camera_mat)
+        # 检查是否小于阈值
+        below_threshold_1 = abs_diff <= threshold
+
+        # 确保两个矩阵具有相同的形状
+        assert data.dist_coeff.shape == self.init_dist_coeff.shape, "矩阵形状不匹配"
+        # 计算init矩阵对应位置的阈值
+        threshold = np.ones_like(self.init_dist_coeff)
+        # 检查是否小于阈值
+        below_threshold_2 = np.abs(data.dist_coeff) <= threshold
+
+        # 判断这些值是否都大于0
+        if not np.all(below_threshold_1) or not np.all(below_threshold_2):
+            data.check = False
+
+        data.ok = data.ok and data.check and cv2.checkRange(data.camera_mat) and cv2.checkRange(data.dist_coeff)
 
     def _update_refine(self, board, corners, frame_size):
         data = self.data
@@ -109,6 +138,7 @@ class Fisheye:
         if not self.inited: return
         data = self.data
         data.reproj_err = []
+
         for i in range(len(corners)):
             corners_reproj, _ = cv2.fisheye.projectPoints(self.board[i], data.rvecs[i], data.tvecs[i], data.camera_mat,
                                                           data.dist_coeff)
@@ -139,6 +169,11 @@ class Normal:
         #                        for i in range(args.BOARD_HEIGHT)
         #                        for j in range(args.BOARD_WIDTH)], dtype=np.float32)
         self.board = []
+        self.init_camera_mat = np.array(
+            [[1345.159861, 0.000000, 973.776987], [0.000000, 1344.626518, 541.407299], [0.000000, 0.000000, 1.000000]])
+        self.init_dist_coeff = np.array(
+            [[-0.404256259818931], [0.21922420928359876], [-0.00016181802429342013], [-7.126641144546051e-05],
+             [-0.06924570764420157]])
 
     def update(self, corners, frame_size):
         # board = [self.BOARD] * len(corners)
@@ -153,17 +188,35 @@ class Normal:
     def _update_init(self, board, corners, frame_size):
         data = self.data
         data.type = "NORMAL"
-        data.camera_mat = np.array(
-            [[1345.159861, 0.000000, 973.776987], [0.000000, 1344.626518, 541.407299], [0.000000, 0.000000, 1.000000]])
-        data.dist_coeff = np.array(
-            [[-0.404256259818931], [0.21922420928359876], [-0.00016181802429342013], [-7.126641144546051e-05],
-             [-0.06924570764420157]])
+        data.camera_mat = self.init_camera_mat
+        data.dist_coeff = self.init_dist_coeff
         print(f"corners.size {len(corners)}")
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.calibrateCamera(
             board, corners, frame_size, data.camera_mat, data.dist_coeff,
             flags=cv2.CALIB_USE_INTRINSIC_GUESS,
-            criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 1e-6))
-        data.ok = data.ok and cv2.checkRange(data.camera_mat) and cv2.checkRange(data.dist_coeff)
+            criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 100, 1e-6))
+
+        # 确保两个矩阵具有相同的形状
+        assert data.camera_mat.shape == self.init_camera_mat.shape, "矩阵形状不匹配"
+        # 计算两个矩阵每个元素的差的绝对值
+        abs_diff = np.abs(data.camera_mat - self.init_camera_mat)
+        # 计算init矩阵对应位置的阈值
+        threshold = 0.15 * np.abs(self.init_camera_mat)
+        # 检查是否小于阈值
+        below_threshold_1 = abs_diff <= threshold
+
+        # 确保两个矩阵具有相同的形状
+        assert data.dist_coeff.shape == self.init_dist_coeff.shape, "矩阵形状不匹配"
+        # 计算init矩阵对应位置的阈值
+        threshold = np.ones_like(self.init_dist_coeff)
+        # 检查是否小于阈值
+        below_threshold_2 = np.abs(data.dist_coeff) <= threshold
+
+        # 判断这些值是否都大于0
+        if not np.all(below_threshold_1) or not np.all(below_threshold_2):
+            data.check = False
+
+        data.ok = data.ok and data.check and cv2.checkRange(data.camera_mat) and cv2.checkRange(data.dist_coeff)
 
     def _update_refine(self, board, corners, frame_size):
         data = self.data
@@ -177,6 +230,7 @@ class Normal:
         if not self.inited: return
         data = self.data
         data.reproj_err = []
+
         for i in range(len(corners)):
             corners_reproj, _ = cv2.projectPoints(self.board[i], data.rvecs[i], data.tvecs[i], data.camera_mat,
                                                   data.dist_coeff)
@@ -218,19 +272,43 @@ class InCalibrator:
         return args
 
     def get_corners(self, img):
-        ok, corners = cv2.findChessboardCorners(img, (args.BOARD_WIDTH, args.BOARD_HEIGHT),
-                                                flags=cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_NORMALIZE_IMAGE | cv2.CALIB_CB_FAST_CHECK)
-        if ok:
+        ok = False
+        ret_corners = []
+        ret_board = []
+        if args.FIND_TYPE:
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            corners = cv2.cornerSubPix(gray, corners, (args.SUBPIX_REGION, args.SUBPIX_REGION), (-1, -1),
-                                       (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01))
-        return ok, corners
+            ret = True
+            while ret:
+                # 寻找并绘制每个棋盘格的角点
+                ret, corners = cv2.findChessboardCorners(gray, (args.BOARD_WIDTH, args.BOARD_HEIGHT),
+                                                         flags=cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_NORMALIZE_IMAGE | cv2.CALIB_CB_FAST_CHECK)
+                if ret:
+                    ret_corners.append(corners)
+                    ret_board.append(self.single_board)
+                    # 在图像上绘制第一个棋盘格的角点
+                    x, y, w, h = cv2.boundingRect(corners)
+                    gray[y:y + h, x:x + w] = 0
+                    ok = True
+                else:
+                    break
+
+        else:
+            ok, corners = cv2.findChessboardCorners(img, (args.BOARD_WIDTH, args.BOARD_HEIGHT),
+                                                    flags=cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_NORMALIZE_IMAGE | cv2.CALIB_CB_FAST_CHECK)
+            if ok:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                corners = cv2.cornerSubPix(gray, corners, (args.SUBPIX_REGION, args.SUBPIX_REGION), (-1, -1),
+                                           (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-6))
+                ret_corners.append(corners)
+                ret_board.append(self.single_board)
+        return ok, ret_corners, ret_board
 
     def get_aruco_corners(self, img, save_path=None):
+        ok, obj_point_ndarray, img_point_ndarray = False, None, None
         aruco_tool.set_aruco_dictionary(args.ARUCO_DIC_SIZE, args.ARUCO_DIC_NUM)
         aruco_tool.set_charuco_board((args.BOARD_WIDTH + 1,
                                       (args.BOARD_HEIGHT + 1) * args.ARUCO_BOARD_NUM + args.ARUCO_BOARD_SPACER * (
-                                                  args.ARUCO_BOARD_NUM - 1)))
+                                              args.ARUCO_BOARD_NUM - 1)))
 
         # aruco_tool.set_aruco_dictionary(5, 1000)
         # aruco_tool.set_charuco_board((10, 159))
@@ -240,6 +318,9 @@ class InCalibrator:
             ret_img_bool = True
 
         objPoints, imgPoints, charucoIds, ret_img = aruco_tool.charuco_detect(img, ret_img_bool)
+
+        if objPoints is None:
+            return ok, obj_point_ndarray, img_point_ndarray
 
         threshold = args.BOARD_WIDTH * (args.BOARD_HEIGHT + 1 + args.ARUCO_BOARD_SPACER)
         # 初始化一个列表来存储十个组
@@ -253,8 +334,10 @@ class InCalibrator:
         for obj_point, img_point, ids in points_with_charuco_ids:
             if ids is not None and 0 <= ids[0] < threshold * args.ARUCO_BOARD_NUM:
                 temp_ids = ids[0] // threshold
-                temp_obj_point_list[temp_ids] = np.vstack([temp_obj_point_list[temp_ids],  (obj_point[0].reshape(1, 1,-1) / 0.25 * args.SQUARE_SIZE)])
-                temp_img_point_list[temp_ids] = np.vstack([temp_img_point_list[temp_ids], img_point[0].reshape(1, 1,-1)])
+                temp_obj_point_list[temp_ids] = np.vstack(
+                    [temp_obj_point_list[temp_ids], (obj_point[0].reshape(1, 1, -1) / 0.25 * args.SQUARE_SIZE)])
+                temp_img_point_list[temp_ids] = np.vstack(
+                    [temp_img_point_list[temp_ids], img_point[0].reshape(1, 1, -1)])
 
         # 过滤掉为空的组
         obj_point_ndarray = [arr.astype(np.float32) for arr in temp_obj_point_list if arr.size > 10 * 3]
@@ -272,7 +355,6 @@ class InCalibrator:
             # cv2.waitKey(0)
             cv2.imwrite(save_path, ret_img)
 
-        ok = False
         if len(obj_point_ndarray) > 0:
             ok = True
         return ok, obj_point_ndarray, img_point_ndarray
@@ -296,7 +378,7 @@ class InCalibrator:
                                       for i in range(bh)
                                       for j in range(bw)], dtype=np.float32)
 
-    def __call__(self, raw_frame, filepath=None):
+    def __call__(self, raw_frame, filepath=None, calibrate=True):
         result = None
         # 是否使用aruco板
         if args.ARUCO_FLAG:
@@ -305,19 +387,21 @@ class InCalibrator:
             if ok:
                 self.corners.extend(imgPoints)  # 角点像素坐标
                 self.camera.board.extend(objPoints)  # 角点世界坐标
+            if calibrate:
                 result = self.calibrate(raw_frame)
 
         else:
             # chess_board_sdk.find_chessboard(raw_frame, 0.5, filepath)
-            ok, corners = self.get_corners(raw_frame)
+            ok, corners, boards = self.get_corners(raw_frame)
             result = self.camera.data
             if ok:
-                self.corners.append(corners)  # 角点像素坐标
-                self.camera.board.append(self.single_board)  # 角点世界坐标
+                self.corners.extend(corners)  # 角点像素坐标
+                self.camera.board.extend(boards)  # 角点世界坐标
+            if calibrate:
                 result = self.calibrate(raw_frame)
-                if filepath is not None:
-                    cv2.drawChessboardCorners(raw_frame, (args.BOARD_WIDTH, args.BOARD_HEIGHT), corners, ok)
-                    cv2.imwrite(filepath, raw_frame)
+                # if filepath is not None:
+                # cv2.drawChessboardCorners(raw_frame, (args.BOARD_WIDTH, args.BOARD_HEIGHT), corners, ok)
+                # cv2.imwrite(filepath, raw_frame)
         return result
 
 
@@ -359,10 +443,10 @@ class CalibMode():
         cap.set(cv2.CAP_PROP_FPS, args.CAMERA_FPS)
         return cap
 
-    def runCalib(self, raw_frame, display_raw=False, display_undist=False, filepath=None):
+    def runCalib(self, raw_frame, display_raw=False, display_undist=False, filepath=None, calibrate=True):
         calibrator = self.calibrator
         raw_frame = self.imgPreprocess(raw_frame)
-        result = calibrator(raw_frame, filepath)
+        result = calibrator(raw_frame, filepath=filepath, calibrate=calibrate)
         if display_raw or display_undist:
             raw_frame = calibrator.draw_corners(raw_frame)
         if display_raw:
@@ -379,11 +463,14 @@ class CalibMode():
         filenames = get_images(args.INPUT_PATH, args.IMAGE_FILE)
         result = CalibData()
         if len(filenames) != 0:
-            for filename in filenames:
-                print(filename)
-                raw_frame = cv2.imread(filename)
-                filename = filename.replace("chessboard", "result")
-                result = self.runCalib(raw_frame, filepath=filename)
+            calibrate_state = False
+            for i in range(len(filenames)):
+                print(filenames[i])
+                raw_frame = cv2.imread(filenames[i])
+                filename = filenames[i].replace("chessboard", "result")
+                if args.CALI_STATE and i == len(filenames) - 1:
+                    calibrate_state = True
+                result = self.runCalib(raw_frame, filepath=filename, calibrate=calibrate_state)
                 # key = cv2.waitKey(1)
                 # if key == 27: break
             cv2.destroyAllWindows()

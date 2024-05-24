@@ -158,7 +158,7 @@ class ExCalibrator():
         if ok: 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             corners = cv2.cornerSubPix(gray, corners, (subpix, subpix), (-1, -1),
-                                       (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01))
+                                       (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-6))
         if draw:
             cv2.drawChessboardCorners(img, (args.BOARD_WIDTH, args.BOARD_HEIGHT), corners, ok)
         return ok, corners

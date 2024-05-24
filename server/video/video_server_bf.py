@@ -13,7 +13,7 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel
 
 from model.camera import Camera
-from utils import m_global
+from utils.run_para import m_global
 from PyQt5.QtCore import QObject
 from multiprocessing import Process
 import numpy as np
@@ -66,7 +66,7 @@ class VideoServer(QObject):
         app_model.config_ex_internal_path = ex_internal_data_path
         # self.bool_stop_get_frame = False
 
-        aruco_tool.set_aruco_dictionary(5, 1000)
+        aruco_tool.set_aruco_dictionary(4, 1000)
         aruco_tool.set_charuco_board((12, 9))
 
     # 将YUV420P转成cv::Mat格式

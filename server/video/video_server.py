@@ -16,8 +16,7 @@ from PyQt5.QtGui import QImage, QPixmap
 from model.app import app_model
 from model.camera import Camera
 from server.aruco_vz import aruco_tool
-from utils import m_global
-
+from utils.run_para import m_global
 path_root = os.getcwd()
 path_fisheye_dll = os.path.join(path_root, "lib3rd", "fisheye", "video_fuse.dll")
 
@@ -127,7 +126,8 @@ class VideoServer(QObject):
         # cv2.imshow("3", cv2.resize(frame_3, (400, 300)))
         # cv2.imshow("4", cv2.resize(frame_4, (400, 300)))
         # cv2.waitKey(0)
-        if not m_global.m_connect_local:
+
+        if m_global.m_connect_local:
             frame_1 = cv2.imread("m_data/hqtest/ex_L.jpg")
             frame_2 = cv2.imread("m_data/hqtest/ex_R.jpg")
 

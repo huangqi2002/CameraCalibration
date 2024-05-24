@@ -22,12 +22,12 @@ class VideoResultController(BaseControllerTab):
         self.bind_label_and_timer("stitch", self.view.label_video_result, 0)
         self.view.label_video_result.lable_click_signal.connect(self.lable_click_ctrl)
 
-        self.view.depth_horizontalSlider.setMinimum(10)
-        self.view.depth_horizontalSlider.setMaximum(100)
+        self.view.depth_horizontalSlider.setMinimum(1)
+        self.view.depth_horizontalSlider.setMaximum(1000)
         self.view.depth_horizontalSlider.setSingleStep(1)
-        self.view.depth_horizontalSlider.setValue(10)  # 设置初始值
+        self.view.depth_horizontalSlider.setValue(100)  # 设置初始值
         self.view.depth_horizontalSlider.valueChanged.connect(self.slider_value_changed)  # 连接值变化的信号到槽函数
-        self.view.depth_label.setText("Current Value: {}".format(self.view.depth_horizontalSlider.value() / 10))  #
+        self.view.depth_label.setText("Current Value: {}".format(self.view.depth_horizontalSlider.value() / 100))  #
         # 显示当前值的标签
         self.view.changestate_pushButton.clicked.connect(self.button_clicked)  # 连接按钮点击事件到槽函数
         # 定时器
@@ -58,11 +58,11 @@ class VideoResultController(BaseControllerTab):
         app_model.video_server.fisheye_ctrl(click_pos)
 
     def slider_value_changed(self, value):
-        self.view.depth_label.setText("Current Value: {}".format(self.view.depth_horizontalSlider.value() / 10))  # 更新 QLabel 的文本
+        self.view.depth_label.setText("Current Value: {}".format(self.view.depth_horizontalSlider.value() / 100))  # 更新 QLabel 的文本
         self.timer.start(100)  # 设置定时器间隔为100毫秒
 
     def depth_set(self):
-        app_model.video_server.fisheye_depth_set(self.view.depth_horizontalSlider.value() / 10)
+        app_model.video_server.fisheye_depth_set(self.view.depth_horizontalSlider.value() / 100)
 
     def button_clicked(self):
         self.view.depth_horizontalSlider.setValue(10)

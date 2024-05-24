@@ -7,8 +7,7 @@ from PyQt5 import QtWidgets
 
 from ui.mainwindow import MainWindow
 from controller.controller_main import MainController
-from utils import m_global
-
+from utils.run_para import m_global
 class QSSLoader:
     @staticmethod
     def read_qss_file(qss_file_name):

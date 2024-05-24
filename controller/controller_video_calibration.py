@@ -17,8 +17,7 @@ from model.app import app_model
 from server.web.web_server import server
 from server.internal.boardSplit import getBoardPosition
 
-from utils import m_global
-
+from utils.run_para import m_global
 import ctypes as C
 
 
@@ -126,6 +125,12 @@ class VideoCalibrationController(BaseControllerTab):
 
     # 开始标定槽函数
     def on_start(self):
+        self.upload_file(app_model.device_model.ip, "D:\VZ\camera_calibration\CameraCalibrationTool\configs\internal\external_cfg_90.json",
+                         f"/mnt/usr/kvdb/usr_data_kvdb/external_cfg.json")
+        self.upload_file(app_model.device_model.ip, "D:\VZ\camera_calibration\CameraCalibrationTool\configs\internal\inter_cfg_90",
+                         f"/mnt/usr/kvdb/usr_data_kvdb/inter_cfg")
+
+
         # 获取实时文件夹路径
         # self.external_data_path = self.view.get_choose_file_lineedit()
         self.view.set_start_button_enable(False)
@@ -167,7 +172,7 @@ class VideoCalibrationController(BaseControllerTab):
             self.view.set_image_right(filepath)
 
     # 保存帧
-    def save_frame(self, key_index):#chessboard_L
+    def save_frame(self, key_index):
         if key_index == 0:
             image_path_1 = os.path.join(self.external_data_path, "chessboard_ML_L.jpg")
             image_path_2 = os.path.join(self.external_data_path, "chessboard_L_L.jpg")
@@ -184,6 +189,9 @@ class VideoCalibrationController(BaseControllerTab):
             save_frame_key_1, save_frame_key_2 = "right", "middle_right"
             local_img_1, local_img_2 = "in_R", "in_MR"
 
+        if not m_global.aruco_flag:
+            local_img_1 = local_img_1.replace("in", "ex")
+            local_img_2 = local_img_2.replace("in", "ex")
 
         if m_global.m_connect_local:
             frame = cv2.imread(f"m_data/hqtest/{local_img_1}.jpg")
@@ -233,33 +241,35 @@ class VideoCalibrationController(BaseControllerTab):
             stitch_mode = super().stitch_mode_fisheye
         elif key_index == 2:
             stitch_mode = super().stitch_mode_right
-        cfg_params = super().get_ex_stitch(stitch_mode)
+        ex_calib_ok, cfg_params = super().get_ex_stitch(stitch_mode)
 
-        # 保存文件
-        try:
-            result_json = json.dumps(cfg_params, indent=4)
-            print("JSON serialization successful.")
-        except Exception as e:
-            print(f"An error occurred during JSON serialization: {e}")
-        self.save_external_file(result_json)
-        self.show_message_signal.emit(True, "参数保存本地成功")
-        print("save_external_file success")
-
-        # 上传文件
-        self.show_message_signal.emit(True, "上传拼接结果")
-        filename = "external_cfg.json"
-        result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
-                                  f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
-        if not result:
-            self.show_message_signal.emit(False, "上传拼接文件失败")
-            server.logout()
+        if not ex_calib_ok:
+            self.show_message_signal.emit(False, "外参标定失败...")
         else:
-            self.show_message_signal.emit(True, "上传拼接文件成功")
-            self.show_message_signal.emit(True, "标定完成")
+            # 保存文件
+            try:
+                result_json = json.dumps(cfg_params, indent=4)
+                print("JSON serialization successful.")
+            except Exception as e:
+                print(f"An error occurred during JSON serialization: {e}")
+            self.save_external_file(result_json)
+            self.show_message_signal.emit(True, "参数保存本地成功")
+            print("save_external_file success")
+
+            # 上传文件
+            self.show_message_signal.emit(True, "上传拼接结果")
+            filename = "external_cfg.json"
+            result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
+                                      f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
+            if not result:
+                self.show_message_signal.emit(False, "上传拼接文件失败")
+                server.logout()
+            else:
+                self.show_message_signal.emit(True, "上传拼接文件成功")
+                self.show_message_signal.emit(True, "标定完成")
 
         self.view.set_start_button_enable(True)
         self.work_thread_state = False
-
 
     # 上传拼接参数（fg）
     def upload_stitch_fg(self, device_ip, file_path):

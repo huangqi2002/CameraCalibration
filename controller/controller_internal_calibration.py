@@ -18,8 +18,7 @@ from server.internal.boardSplit import getBoardPosition
 from server.internal.internal_server import *
 from server.web.web_server import *
 
-from utils import m_global
-
+from utils.run_para import m_global
 
 class InternalCalibrationController(BaseControllerTab):
     video_map = {}
@@ -178,30 +177,34 @@ class InternalCalibrationController(BaseControllerTab):
         # self.view.show_loading(msg="正在处理内参计算...")
 
     def get_ex_stitch(self):
-        cfg_params = super().get_ex_stitch()
-        # 保存文件
-        try:
-            result_json = json.dumps(cfg_params, indent=4)
-            print("JSON serialization successful.")
-        except Exception as e:
-            print(f"An error occurred during JSON serialization: {e}")
-        self.save_external_file(result_json)
-        self.show_message_signal.emit(True, "参数保存本地成功")
-        print("save_external_file success")
-
-        # 上传文件
-        self.show_message_signal.emit(True, "上传拼接结果")
-        filename = "external_cfg.json"
-        result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
-                                  f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
-        if not result:
-            self.show_message_signal.emit(False, "上传拼接文件失败")
-            server.logout()
+        ex_calib_ok, cfg_params = super().get_ex_stitch()
+        if not ex_calib_ok:
+            self.show_message_signal.emit(False, "外参标定失败...")
         else:
-            self.show_message_signal.emit(True, "上传拼接文件成功")
-            self.show_message_signal.emit(True, "标定完成")
+            # 保存文件
+            try:
+                result_json = json.dumps(cfg_params, indent=4)
+                print("JSON serialization successful.")
+            except Exception as e:
+                print(f"An error occurred during JSON serialization: {e}")
+            self.save_external_file(result_json)
+            self.show_message_signal.emit(True, "参数保存本地成功")
+            print("save_external_file success")
+
+            # 上传文件
+            self.show_message_signal.emit(True, "上传拼接结果")
+            filename = "external_cfg.json"
+            result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
+                                      f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
+            if not result:
+                self.show_message_signal.emit(False, "上传拼接文件失败")
+                server.logout()
+            else:
+                self.show_message_signal.emit(True, "上传拼接文件成功")
+                self.show_message_signal.emit(True, "标定完成")
 
         self.view.set_screenshot_button_enable(True)
+        return ex_calib_ok
 
     # 截图相机位置切换槽函数
     def position_play(self):

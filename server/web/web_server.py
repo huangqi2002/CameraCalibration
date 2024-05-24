@@ -224,12 +224,16 @@ class DeviceServer:
         if get_data["body"]["channel"] is None:
             print("get_data failed")
             return None
-        channel_data = get_data["body"]["channel"]
-        for one_dict in channel_data:
-            one_dict["osd_param"]["date"]["enable"] = enable
-            one_dict["osd_param"]["datetime"]["enable"] = enable
-            for one_usr_text in one_dict["osd_param"]["usr_text"]:
-                one_usr_text["enable"] = enable
+        try:
+            channel_data = get_data["body"]["channel"]
+            for one_dict in channel_data:
+                one_dict["osd_param"]["date"]["enable"] = enable
+                one_dict["osd_param"]["datetime"]["enable"] = enable
+                for one_usr_text in one_dict["osd_param"]["usr_text"]:
+                    one_usr_text["enable"] = enable
+            print("ctrl_osd successful.")
+        except Exception as e:
+            print(f"An error occurred during ctrl_osd: {e}")
         close_osd_data = {
             "type": "set_osd_prm",
             "module": "AVS_REQUEST_MESSAGE",

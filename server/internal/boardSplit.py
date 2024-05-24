@@ -8,8 +8,11 @@ from numpy import dtype, uint8
 import time
 
 
-def getBoardPosition(imgPath, boardSize, outPath, count=0, find_ex_board=False):
-    inImg = cv2.imread(imgPath, cv2.IMREAD_GRAYSCALE)
+def getBoardPosition(Img, boardSize, outPath, count=0, find_ex_board=False, path_bool=True):
+    if path_bool:
+        inImg = cv2.imread(Img, cv2.IMREAD_GRAYSCALE)
+    else:
+        inImg = cv2.cvtColor(Img, cv2.COLOR_BGR2GRAY)
     if inImg is None:
         print("Imread error!")
     (imgHigh, imgWith) = inImg.shape
@@ -30,6 +33,8 @@ def getBoardPosition(imgPath, boardSize, outPath, count=0, find_ex_board=False):
     ex_distance_thr = math.sqrt(math.pow((grayHigh / 2), 2) + math.pow((grayWith / 4), 2))
 
     idI = 0
+    ex_rect = None
+    ret_img = None
     while ret:
         # 寻找并绘制每个棋盘格的角点
         ret, corners = cv2.findChessboardCorners(gray, boardSize, None)
@@ -38,16 +43,11 @@ def getBoardPosition(imgPath, boardSize, outPath, count=0, find_ex_board=False):
             x, y, w, h = cv2.boundingRect(corners)
             gray[y:y + h, x:x + w] = 0
 
-            # 如果是在标定外参，则只截取正对相机那个棋盘格
-            if find_ex_board:
-                ex_distance = math.sqrt(
-                    math.pow((grayHigh - (y + h / 2)), 2) + math.pow((grayWith / 2 - (x + w / 2)), 2))
-                if ex_distance >= ex_distance_min or ex_distance >= ex_distance_thr:
-                    continue
-                else:
-                    ex_distance_min = ex_distance
-                    idI = 0
-            black_rect = [int(y * factor), int((y + h) * factor), int(x * factor), int((x + w) * factor)]
+            # 与底边中心距离
+            ex_distance = math.sqrt(
+                math.pow((grayHigh - (y + h / 2)), 2) + math.pow((grayWith / 2 - (x + w / 2)), 2))
+
+            # black_rect = [int(y * factor), int((y + h) * factor), int(x * factor), int((x + w) * factor)]
             x = x - margin * w
             if x < 0:
                 x = 0
@@ -65,21 +65,43 @@ def getBoardPosition(imgPath, boardSize, outPath, count=0, find_ex_board=False):
             rect = (x, y, w, h)
             rectSize = rect[2] * rect[3]
             if rectSize > 1000 and rect[2] < rect[3] * 2 and rect[3] < rect[2] * 2:
-                # dstRect.append(rect)
-                # 保存图片
-                outImg = np.zeros((imgHigh, imgWith), dtype=uint8)
-                subRect = tuple(int(item * factor) for item in rect)
-                x, y, w, h = subRect
-                outImg[y:y + h, x:x + w] = \
-                    inImg[y:y + h, x:x + w]
-                cv2.imwrite(os.path.join(outPath, "chessboard_" + str(count) + "_" + str(idI) + ".jpg"), outImg)
-                idI += 1
-            inImg[black_rect[0]:black_rect[1], black_rect[2]:black_rect[3]] = 0
+                # 如果是在标定外参，则只截取正对相机那个棋盘格
+                if find_ex_board:
+                    ex_distance = math.sqrt(
+                        math.pow((grayHigh - (y + h / 2)), 2) + math.pow((grayWith / 2 - (x + w / 2)), 2))
+                    if ex_distance >= ex_distance_min or ex_distance >= ex_distance_thr:
+                        continue
+                    else:
+                        ex_distance_min = ex_distance
+                        ex_rect = rect
+                else:
+                    # dstRect.append(rect)
+                    # 保存图片
+                    outImg = np.zeros((imgHigh, imgWith), dtype=uint8)
+                    subRect = tuple(int(item * factor) for item in rect)
+                    x, y, w, h = subRect
+                    outImg[y:y + h, x:x + w] = \
+                        inImg[y:y + h, x:x + w]
+                    cv2.imwrite(os.path.join(outPath, "split_" + str(count) + "_" + str(idI) + ".jpg"), outImg)
+                    idI += 1
+            # inImg[black_rect[0]:black_rect[1], black_rect[2]:black_rect[3]] = 0
         else:
             break
+    if ex_rect is not None:
+        ret_img = np.zeros((imgHigh, imgWith), dtype=uint8)
+        subRect = tuple(int(item * factor) for item in ex_rect)
+        x, y, w, h = subRect
+        ret_img[y:y + h, x:x + w] = \
+            inImg[y:y + h, x:x + w]
+        if outPath is not None:
+            cv2.imwrite(outPath, ret_img)
     if find_ex_board and ex_distance_min == 9999:
-        return False
-    return True
+        return False, ret_img
+    return True, ret_img
+
+
+
+
     # m_time = time.time() - m_time
     # for idI in range(len(dstRect)):
     #     outImg = np.zeros((imgHigh, imgWith), dtype=uint8)

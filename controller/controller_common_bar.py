@@ -10,8 +10,7 @@ from model.app import app_model
 from server.video.video_server import VideoServer
 from model.camera import Camera
 from server.web.web_server import *
-from utils import m_global
-
+from utils.run_para import m_global
 
 class CommonBarController(BaseController):
     signal_show_log_view = pyqtSignal(bool)

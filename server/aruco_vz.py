@@ -97,17 +97,29 @@ class aruco_vz():
                 cv2.circle(img, point, 5, color, -1)
 
     # 检测charuco
-    def charuco_detect(self, img, paint=False):
+    def charuco_detect(self, img, paint=False, minMarkerPerimeterRate=0.005):
         objPoints, imgPoints, ret_img = None, None, img.copy()
-        charucoCorners, charucoIds, markerCorners, markerIds = self.charuco_detector.detectBoard(img)
+
+        # 创建 DetectorParameters 对象并设置参数
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = img
+        parameters = self.charuco_detector.getDetectorParameters()
+        # parameters.adaptiveThreshWinSizeMin = 3  # 自适应阈值窗口的最小大小
+        # parameters.adaptiveThreshWinSizeMax = 23  # 自适应阈值窗口的最大大小
+        parameters.minMarkerPerimeterRate = minMarkerPerimeterRate  # 最小标记周长比率
+        self.charuco_detector.setDetectorParameters(parameters)
+
+        charucoCorners, charucoIds, markerCorners, markerIds = self.charuco_detector.detectBoard(gray)
         if charucoCorners is not None:
             objPoints, imgPoints = self.charuco_board.matchImagePoints(charucoCorners, charucoIds)
             # if charucoCorners.shape[0] >= 10:
             if paint:
                 # self.draw_charuco_corners(ret_img, charucoCorners)
                 cv2.aruco.drawDetectedCornersCharuco(ret_img, charucoCorners, charucoIds, cornerColor=(0, 255, 0))
-                # cv2.aruco.drawDetectedMarkers(ret_img, markerCorners, markerIds)
-                # print(charucoCorners)
+        # if paint:
+        #     cv2.aruco.drawDetectedMarkers(ret_img, markerCorners, markerIds)
+        # print(len(charucoCorners))
+
         return objPoints, imgPoints, charucoIds, ret_img
 
     # 设置artah 参数

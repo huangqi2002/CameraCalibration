@@ -14,8 +14,7 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel
 
 from server.external.ex_Calib import ex_calib
-from utils import m_global
-
+from utils.run_para import m_global
 from controller.controller_base import BaseController
 from model.app import app_model
 from model.video import Video
@@ -343,120 +342,141 @@ class BaseControllerTab(BaseController):
 
         # 标定两目相机之间的外参
 
-    def calib_ex_aruco(self, img_0, img_1, mode="", save_path_1=None, save_path_2=None, cfg_params=None):
+    def calib_ex(self, img_0, img_1, mode="", save_path_1=None, save_path_2=None, cfg_params=None, aruco_flag=True):
         check = True
         if cfg_params is None:
             with open(app_model.config_ex_internal_path, 'r') as file:
                 cfg_params = json.load(file)
         ex_calib.set_intrinsic_params(cfg_params)
+        ret = True
+        if aruco_flag:
+            dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "right", False, True, m_global.board_id_fish, ""  # 双鱼眼标定模式
+            if mode == "left":  # 左边鱼眼+普通标定模式
+                dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "mid_left", False, False, m_global.board_id_left, "left_"  # 左边鱼眼+普通标定模式
+            elif mode == "right":  # 右边鱼眼+普通标定模式
+                dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "right", "mid_right", True, True, m_global.board_id_right, "right_"  # 右边鱼眼+普通标定模式
 
-        dirct_1, dirct_2, board_id, prefix = "left", "right", m_global.board_id_fish, ""  # 双鱼眼标定模式
-        if mode == "left":  # 左边鱼眼+普通标定模式
-            dirct_1, dirct_2, board_id, prefix = "left", "mid_left", m_global.board_id_left, "left_"  # 左边鱼眼+普通标定模式
-        elif mode == "right":  # 右边鱼眼+普通标定模式
-            dirct_1, dirct_2, board_id, prefix = "right", "mid_right", m_global.board_id_right, "right_"  # 右边鱼眼+普通标定模式
+            ex_calib.show_img = np.zeros((3000, 2960, 3))
 
-        ex_calib.show_img = np.zeros((3000, 2960, 3))
+            ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate_aruco(dirct_1, img_0, dic_size=5, dic_num=1000,
+                                                                           board_width=m_global.bW,
+                                                                           board_height=m_global.bH,
+                                                                           board_spacer=m_global.bSpacer,
+                                                                           board_id=board_id,
+                                                                           square_size=m_global.bSize,
+                                                                           board_num=m_global.bNum,
+                                                                           save_path=save_path_1,
+                                                                           check_mode=True,
+                                                                           rotate=rotate_1)
 
-        ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate(dirct_1, img_0, dic_size=5, dic_num=1000,
-                                                                 board_width=m_global.bW,
-                                                                 board_height=m_global.bH,
-                                                                 board_spacer=m_global.bSpacer, board_id=board_id,
-                                                                 square_size=m_global.bSize, board_num=m_global.bNum,
-                                                                 save_path=save_path_1, check_mode=True)
+            if not ret:
+                self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
+                print(f"{prefix}{dirct_1} ex calib filed")
+                return ret, cfg_params
+            print(f"rvecs_1:\n{rvecs_1}")
+            print(f"tvecs_1:\n{tvecs_1}")
+            print(f"{prefix}{dirct_1} ex calib ok")
 
-        if not ret:
-            return cfg_params
-        print(f"{prefix}{dirct_1} ex calib ok")
+            ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate_aruco(dirct_2, img_1, dic_size=5, dic_num=1000,
+                                                                           board_width=m_global.bW,
+                                                                           board_height=m_global.bH,
+                                                                           board_spacer=m_global.bSpacer,
+                                                                           board_id=board_id,
+                                                                           square_size=m_global.bSize,
+                                                                           board_num=m_global.bNum,
+                                                                           save_path=save_path_2,
+                                                                           check_mode=True,
+                                                                           rotate=rotate_2)
 
-        ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate(dirct_2, img_1, dic_size=5, dic_num=1000,
-                                                                 board_width=m_global.bW,
-                                                                 board_height=m_global.bH,
-                                                                 board_spacer=m_global.bSpacer, board_id=board_id,
-                                                                 square_size=m_global.bSize, board_num=m_global.bNum,
-                                                                 save_path=save_path_2,
-                                                                 check_mode=True)  # "../m_data/aruco/ex/camera1.jpg")
+            if not ret:
+                self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
+                print(f"{prefix}{dirct_2} ex calib failed")
+                return ret, cfg_params
+            # print(f"rvecs_2:\n{rvecs_2}")
+            # print(f"tvecs_2:\n{tvecs_2}")
+            print(f"{prefix}{dirct_2} ex calib ok")
+        else:
+            dirct_1, dirct_2, prefix = "left", "right", ""  # 双鱼眼标定模式
+            if mode == "left":  # 左边鱼眼+普通标定模式
+                dirct_1, dirct_2, prefix = "left", "mid_left", "left_"  # 左边鱼眼+普通标定模式
+            elif mode == "right":  # 右边鱼眼+普通标定模式
+                dirct_1, dirct_2, prefix = "right", "mid_right", "right_"  # 右边鱼眼+普通标定模式
+            ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate(dirct_1, img_0, board_width=m_global.bW,
+                                                                     board_height=m_global.bH,
+                                                                     square_size=m_global.bSize, save_path=save_path_1,
+                                                                     check_mode=True)
+            if not ret:
+                self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
+                print(f"{prefix}{dirct_1} ex calib filed")
+                return ret, cfg_params
+            print(f"{prefix}{dirct_1} ex calib ok")
 
-        if not ret:
-            return cfg_params
-        print(f"{prefix}{dirct_1} ex calib ok")
+            ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate(dirct_2, img_1, board_width=m_global.bW,
+                                                                     board_height=m_global.bH,
+                                                                     square_size=m_global.bSize, save_path=save_path_2,
+                                                                     check_mode=True)
+
+            if not ret:
+                self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
+                print(f"{prefix}{dirct_2} ex calib failed")
+                return ret, cfg_params
+            print(f"{prefix}{dirct_1} ex calib ok")
 
         common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
         # 输出具有相同键的元素
         distance = 0.0
         distance_count = 0
         for key in common_keys:
-            print(np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2)))
+            # print(np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2)))
             distance += np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2))
             distance_count += 1
         distance /= distance_count
         print(f"distance : {distance}\n")
+        if distance > 0.01:
+            self.show_message_signal.emit(False, "拼接标定误差较大")
+            print("拼接标定误差较大")
+            ret = False
 
         cfg_params[prefix + 'rvecs_1'] = rvecs_1.flatten().tolist()
         cfg_params[prefix + 'tvecs_1'] = tvecs_1.flatten().tolist()
         cfg_params[prefix + 'rvecs_2'] = rvecs_2.flatten().tolist()
         cfg_params[prefix + 'tvecs_2'] = tvecs_2.flatten().tolist()
-        # print(f"{app_model.config_ex_internal_path} read OK")
-        # # print(f" ex_result : {ex_result} ")
-        # try:
-        #     result_json = json.dumps(cfg_params, indent=4)
-        #     print("JSON serialization successful.")
-        # except Exception as e:
-        #     print(f"An error occurred during JSON serialization: {e}")
-        # self.save_external_file(result_json)
-        # print("save_external_file success")
 
-        # # 上传文件
-        # self.show_message_signal.emit(True, "上传拼接结果")
-        # filename = "external_cfg.json"
-        # result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
-        #                           f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
-        # if not result:
-        #     self.show_message_signal.emit(False, "上传拼接文件失败")
-        #     server.logout()
-        # else:
-        #     self.show_message_signal.emit(True, "上传拼接文件成功")
-        #     # self.reboot_device()
-        #     # self.reset_factory_mode()
-        #     # self.signal_reboot_device.emit()
-        #     # self.show_message_signal.emit(True, "标定完成，等待设备重启后查看结果") hqtest
-        #     self.show_message_signal.emit(True, "标定完成")
-        #     # self.reboot_finish_signal.emit(2)
-
-        return cfg_params
+        return ret, cfg_params
 
         # 进行外参计算
 
     def get_ex_stitch(self, stitch_mode=stitch_mode_fisheye | stitch_mode_left | stitch_mode_right):
         self.show_message_signal.emit(True, "开始计算相机外参")
         cfg_params = None
+        ret = False
         if stitch_mode & self.stitch_mode_fisheye:
             img_name_1, img_name_2 = "L", "R"
             img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
             img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
-            cfg_params = self.calib_ex_aruco(img_ex_1, img_ex_2,
-                                             save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
-                                             save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
-                                             cfg_params=cfg_params)
+            ret, cfg_params = self.calib_ex(img_ex_1, img_ex_2,
+                                            save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
+                                            save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
+                                            cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
         if stitch_mode & self.stitch_mode_left:
             img_name_1, img_name_2 = "L_L", "ML_L"
             img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
             img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
-            cfg_params = self.calib_ex_aruco(img_ex_1, img_ex_2, "left",
-                                             save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
-                                             save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
-                                             cfg_params=cfg_params)
+            ret, cfg_params = self.calib_ex(img_ex_1, img_ex_2, "left",
+                                            save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
+                                            save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
+                                            cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
 
         if stitch_mode & self.stitch_mode_right:
             img_name_1, img_name_2 = "R_R", "MR_R"
             img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
             img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
-            cfg_params = self.calib_ex_aruco(img_ex_1, img_ex_2, "right",
-                                             save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
-                                             save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
-                                             cfg_params=cfg_params)
+            ret, cfg_params = self.calib_ex(img_ex_1, img_ex_2, "right",
+                                            save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
+                                            save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
+                                            cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
 
-        return cfg_params
+        return ret, cfg_params
 
     def save_external_file(self, result=None, file_name="external_cfg.json", external_file_path=None):
         # print(f"save {file_name}")

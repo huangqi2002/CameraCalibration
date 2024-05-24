@@ -6,10 +6,11 @@ import numpy as np
 
 # from server.internal.ExtrinsicCalibration import ExCalibrator
 from server.internal.IntrinsicCalibration.intrinsicCalib import InCalibrator, CalibMode
-from utils import m_global
+from utils.run_para import m_global
 
 
-def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize, bSpacer, bNum, aruco_flag=False):
+def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize, bSpacer, bNum, aruco_flag=False,
+                 find_type=False):
     print("Intrinsic Calibration ......")
     args = InCalibrator.get_args()  # 获取内参标定args参数
     args.INPUT_PATH = imgPath  # 修改为新的参数
@@ -23,12 +24,16 @@ def runInCalib_2(mode, imgPath, imgPrefix, bResize, imgW, imgH, bW, bH, bSize, b
     args.ARUCO_BOARD_SPACER = bSpacer
     args.ARUCO_BOARD_NUM = bNum
     args.ARUCO_FLAG = aruco_flag
+    args.FIND_TYPE = find_type
     calibrator = InCalibrator(mode)  # 初始化内参标定器
     calib = CalibMode(calibrator, 'image', 'auto')  # 选择标定模式
+    # args.CALI_STATE = False
+    # result = calib()  # 开始标定
+    args.CALI_STATE = True
     result = calib()  # 开始标定
 
     re_projection_error = None
-    if result is not None:
+    if result is not None and result.ok:
         print("Camera Matrix is : {}".format(result.camera_mat.tolist()))
         print("Distortion Coefficient is : {}".format(result.dist_coeff.tolist()))
         re_projection_error = np.mean(result.reproj_err)
@@ -54,50 +59,60 @@ def create_internal(img_size, mtx, distortion):
 def stitch_test(filePath):
     mode = "fisheye"
     mode_normal = "normal"
-    precision = 0.15
+    precision = m_global.inter_calib_precision
     img_sizeLR_OLD = (2560, 1440)
     img_sizeML = (1920, 1080)
     img_sizeMR = (1920, 1080)
     img_sizeLR_NEW = (2960, 1664)
     # img_sizeML = img_sizeMR = img_sizeLR_NEW
-    aruco_flag = True
+    aruco_flag = m_global.aruco_flag
     bW = m_global.bW
     bH = m_global.bH
     bSize = m_global.bSize
     bSpacer = m_global.bSpacer
     bNum = m_global.bNum
+    imgPrefix, find_type = "chessboard", m_global.find_type
+    # imgPrefix, find_type = "chessboard", False
 
-    mtxL, distortionL, __, __, reProjectionErrorL = runInCalib_2(mode, filePath + "/L", "chessboard", False,
-                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize, bSpacer, bNum, aruco_flag)
+    mtxL, distortionL, __, __, reProjectionErrorL = runInCalib_2(mode, filePath + "/L", imgPrefix, False,
+                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize,
+                                                                 bSpacer, bNum, aruco_flag, find_type)
+    print(f"L Intrinsic Calibration Ok\n")
+
+    mtxML, distortionML, __, __, reProjectionErrorML = runInCalib_2(mode_normal, filePath + "/ML", imgPrefix, False,
+                                                                    img_sizeML[0], img_sizeML[1], bW, bH, bSize,
+                                                                    bSpacer, bNum, aruco_flag, find_type)
+    print(f"ML Intrinsic Calibration Ok\n")
+
+    mtxMR, distortionMR, __, __, reProjectionErrorMR = runInCalib_2(mode_normal, filePath + "/MR", imgPrefix, False,
+                                                                    img_sizeMR[0], img_sizeMR[1], bW, bH, bSize,
+                                                                    bSpacer, bNum, aruco_flag, find_type)
+    print(f"MR Intrinsic Calibration Ok\n")
+
+    mtxR, distortionR, __, __, reProjectionErrorR = runInCalib_2(mode, filePath + "/R", imgPrefix, False,
+                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize,
+                                                                 bSpacer, bNum, aruco_flag, find_type)
+    print(f"R  Intrinsic Calibration Ok\n")
+
     if mtxL is None or distortionL is None or reProjectionErrorL is None:
         return False, f"L NoBoeardError"
     elif reProjectionErrorL >= precision:
         return False, f"L ReProjectionError: {reProjectionErrorL}"
-    print(f"L Intrinsic Calibration Ok\n")
 
-    mtxML, distortionML, __, __, reProjectionErrorML = runInCalib_2(mode_normal, filePath + "/ML", "chessboard", False,
-                                                                    img_sizeML[0], img_sizeML[1], bW, bH, bSize, bSpacer, bNum, aruco_flag)
     if mtxML is None or distortionML is None or reProjectionErrorML is None:
-        return False, f"L NoBoeardError"
+        return False, f"ML NoBoeardError"
     elif reProjectionErrorML >= precision:
-        return False, f"M ReProjectionError"
-    print(f"ML Intrinsic Calibration Ok\n")
+        return False, f"ML ReProjectionError"
 
-    mtxMR, distortionMR, __, __, reProjectionErrorMR = runInCalib_2(mode_normal, filePath + "/MR", "chessboard", False,
-                                                                    img_sizeMR[0], img_sizeMR[1], bW, bH, bSize, bSpacer, bNum, aruco_flag)
     if mtxMR is None or distortionMR is None or reProjectionErrorMR is None:
-        return False, f"L NoBoeardError"
+        return False, f"MR NoBoeardError"
     elif reProjectionErrorMR >= precision:
-        return False, f"M ReProjectionError: {reProjectionErrorMR}"
-    print(f"MR Intrinsic Calibration Ok\n")
+        return False, f"MR ReProjectionError: {reProjectionErrorMR}"
 
-    mtxR, distortionR, __, __, reProjectionErrorR = runInCalib_2(mode, filePath + "/R", "chessboard", False,
-                                                                 img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize, bSpacer, bNum, aruco_flag)
     if mtxR is None or distortionR is None or reProjectionErrorR is None:
-        return False, f"L NoBoeardError"
+        return False, f"R NoBoeardError"
     elif reProjectionErrorR >= precision:
         return False, f"R ReProjectionError: {reProjectionErrorR}"
-    print(f"R  Intrinsic Calibration Ok\n")
 
     left_calib = create_internal(img_sizeLR_NEW, mtxL, distortionL)
     mid_left_calib = create_internal(img_sizeML, mtxML, distortionML)
