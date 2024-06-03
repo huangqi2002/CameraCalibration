@@ -125,10 +125,10 @@ class VideoCalibrationController(BaseControllerTab):
 
     # 开始标定槽函数
     def on_start(self):
-        self.upload_file(app_model.device_model.ip, "D:\VZ\camera_calibration\CameraCalibrationTool\configs\internal\external_cfg_90.json",
-                         f"/mnt/usr/kvdb/usr_data_kvdb/external_cfg.json")
-        self.upload_file(app_model.device_model.ip, "D:\VZ\camera_calibration\CameraCalibrationTool\configs\internal\inter_cfg_90",
-                         f"/mnt/usr/kvdb/usr_data_kvdb/inter_cfg")
+        # self.upload_file(app_model.device_model.ip, "D:\\VZ\\camera_calibration\\CameraCalibrationTool\\configs\\internal\\config_fg_90_524.json",
+        #                  f"/mnt/usr/kvdb/usr_data_kvdb/external_cfg.json")
+        # self.upload_file(app_model.device_model.ip, "D:\VZ\camera_calibration\CameraCalibrationTool\configs\internal\inter_cfg_90",
+        #                  f"/mnt/usr/kvdb/usr_data_kvdb/inter_cfg")
 
 
         # 获取实时文件夹路径

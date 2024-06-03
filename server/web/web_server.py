@@ -14,7 +14,7 @@ class DeviceServer:
     def __init__(self):
         self.device = None
 
-    def login(self, ip, url="/request.php"):
+    def login(self, ip, url="/request.php", timeout=50):
         self.device = Device()
         self.device.ip = ip
         self.device.url_host = f"http://{ip}"
@@ -28,7 +28,7 @@ class DeviceServer:
             "user_info": AesCtrV2().encrypt_message(user_pwd, 'secret08')
         }
         login_info = json.dumps(data_login)
-        resp = post(device=self.device, url=url, data=login_info)
+        resp = post(device=self.device, url=url, data=login_info, timeout=timeout)
         if not resp:
             return False
         print("login success:", get_session_id(self.device.session))
@@ -178,11 +178,14 @@ class DeviceServer:
             print("get_osd_para: exception", e)
 
     def ctrl_osd(self, enable):
-        for time_index in range(app_model.login_retry_max_count):
-            login_result = self.login(app_model.device_model.ip)
-            if not login_result:
-                time.sleep(1)
-                continue
+        # for time_index in range(app_model.login_retry_max_count):
+        #     login_result = self.login(app_model.device_model.ip)
+        #     if not login_result:
+        #         time.sleep(1)
+        #         continue
+        # login_result = self.login(app_model.device_model.ip)
+        # if not login_result:
+        #     return None
 
         self.get_osd_para()
         # close_osd_data = {

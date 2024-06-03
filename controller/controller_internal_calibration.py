@@ -104,6 +104,9 @@ class InternalCalibrationController(BaseControllerTab):
 
     # 开始标定
     def on_start(self):
+        if self.work_thread_state:
+            return
+
         self.view.set_start_button_enable(False)
         # 获取实时文件夹路径
         self.internal_data_path = self.view.get_choose_file_lineedit()
@@ -112,6 +115,7 @@ class InternalCalibrationController(BaseControllerTab):
             sn = app_model.device_model.sn
             if not sn:
                 self.log.log_err("sn获取失败")
+                self.show_message_signal.emit(False, "sn获取失败")
                 self.view.set_start_button_enable(True)
                 return
 
@@ -122,10 +126,7 @@ class InternalCalibrationController(BaseControllerTab):
 
         if not self.internal_data_path:
             self.view.set_start_button_enable(True)
-            return
-
-        if self.work_thread_state:
-            self.view.set_start_button_enable(True)
+            self.show_message_signal.emit(False, "内参保存路径创建失败")
             return
 
         self.work_thread_state = True
@@ -137,11 +138,15 @@ class InternalCalibrationController(BaseControllerTab):
 
     # 开始标定外参
     def on_start_ex(self, internal_path=None):
+        if self.work_thread_state:
+            return
+        self.view.set_screenshot_button_enable(False)
         self.view.set_start_button_enable(False)
         ## 创建目录
         sn = app_model.device_model.sn
         if not sn:
             self.log.log_err("sn获取失败")
+            self.show_message_signal.emit(False, "sn获取失败")
             self.view.set_start_button_enable(True)
             self.view.set_screenshot_button_enable(True)
             return
@@ -154,6 +159,7 @@ class InternalCalibrationController(BaseControllerTab):
         if not self.external_data_path:
             self.view.set_start_button_enable(True)
             self.view.set_screenshot_button_enable(True)
+            self.show_message_signal.emit(False, "外参保存路径创建失败")
             return
         # ML_L
         if internal_path is not None:
@@ -163,11 +169,6 @@ class InternalCalibrationController(BaseControllerTab):
                     target_file = f"{self.external_data_path}\\chessboard_{value}.jpg"
                     shutil.copy(source_file, target_file)
                     print(f"Successfully copied {source_file} to {target_file}")
-
-        if self.work_thread_state:
-            self.view.set_start_button_enable(True)
-            self.view.set_screenshot_button_enable(True)
-            return
 
         self.work_thread_state = True
         # 创建线程执行任务
@@ -440,6 +441,7 @@ class InternalCalibrationController(BaseControllerTab):
                     self.work_thread_state = False
                     # self.view.set_screenshot_button_enable(True)
                     return -1
+            self.upload_file(app_model.device_model.ip, pic_path, "/mnt/usr/kvdb/usr_data_kvdb/" + filename)
 
             # 将截图在lable中进行显示
             self.show_image_fg_signal.emit(position_index * 2, pic_path)
@@ -475,7 +477,6 @@ class InternalCalibrationController(BaseControllerTab):
         if not self.one_click_thread:
             self.view.set_screenshot_button_enable(True)
             return
-        self.view.set_screenshot_button_enable(False)
 
         print("\n开始标定外参")
         # 标定外参
@@ -599,9 +600,11 @@ class InternalCalibrationController(BaseControllerTab):
         #     self.show_message_signal.emit(True, "参数结果保存成功")
         # else:
         self.show_message_signal.emit(True, "上传参数结果到相机")
-        self.work_thread = threading.Thread(target=self.upload_file, args=(device_ip, internal_file), daemon=True)
-        self.work_thread.start()
-
+        self.upload_file(device_ip, internal_file)
+        print("内参标定完成")
+        # self.work_thread = threading.Thread(target=self.upload_file, args=(device_ip, internal_file), daemon=True)
+        # self.work_thread.start()
+        #
         self.work_thread_state = False
         self.view.set_screenshot_button_enable(True)
         self.show_image_fg_signal.emit(-1, "")
@@ -633,7 +636,7 @@ class InternalCalibrationController(BaseControllerTab):
         # self.show_image_fg_signal.emit(-1, "")
 
         self.one_click_thread = False
-        print("one_click_thread_event set 2")
+        # print("one_click_thread_event set 2")
         self.one_click_thread_event.set()
 
     # 保存内参参数到本地
@@ -676,16 +679,16 @@ class InternalCalibrationController(BaseControllerTab):
             self.show_message_signal.emit(False, "数据上传:设备登录失败")
         elif server.upload_file(filename=upload_file, upload_path=upload_path):
             if check_mode == -1:
-                self.show_message_signal.emit(True, "数据上传成功")
+                self.show_message_signal.emit(True, f"{upload_file}上传成功")
                 self.work_thread_state = False
                 ret = True
             elif check_mode == 0 and self.check_internal_cfg(upload_file):
-                self.show_message_signal.emit(True, "数据上传成功")
+                self.show_message_signal.emit(True, f"{upload_file}上传成功")
                 self.work_thread_state = False
                 self.show_message_signal.emit(True, "内参标定完成")
                 ret = True
             elif check_mode == 1 and self.check_external_cfg(upload_file):
-                self.show_message_signal.emit(True, "数据上传成功")
+                self.show_message_signal.emit(True, f"{upload_file}上传成功")
                 self.work_thread_state = False
                 self.show_message_signal.emit(True, "外参标定完成")
                 ret = True
@@ -695,7 +698,7 @@ class InternalCalibrationController(BaseControllerTab):
             server.logout()
 
         self.one_click_thread = True
-        print("one_click_thread_event set 3")
+        # print("one_click_thread_event set 3")
         self.one_click_thread_event.set()
         return ret
 

@@ -12,6 +12,7 @@ from model.camera import Camera
 from server.web.web_server import *
 from utils.run_para import m_global
 
+
 class CommonBarController(BaseController):
     signal_show_log_view = pyqtSignal(bool)
     signal_change_device_type = pyqtSignal(str)
@@ -38,6 +39,8 @@ class CommonBarController(BaseController):
         self.view.device_combo_box_add_items(["FG", "RX5"])
 
         self.signal_start_video_server.connect(self.start_video_server)
+
+        self.login_now = 0 # 2:运行，1：暂停中，0：暂停成功
 
     # 在message栏里实时显示连接数
     def cameraconnect_num_show(self, cnt):
@@ -71,7 +74,7 @@ class CommonBarController(BaseController):
             self.disconnect_device()
         else:
             self.connect_device()
-            server.ctrl_osd(0)
+            # server.ctrl_osd(0)
 
     # 连接设备
     def connect_device(self, connect_type=0):
@@ -80,24 +83,34 @@ class CommonBarController(BaseController):
         if not device_ip:
             return
         # print(server.login(device_ip))
-        threading.Thread(target=self.device_login, args=(connect_type,), daemon=True).start()
+        if self.login_now != 0:
+            self.login_now = 1
+            return
+        self.login_now = 2
+        threading.Thread(target=self.device_login, args=(connect_type, 5), daemon=True).start()
         # self.signal_state_device.emit(1, "login success")
 
     # 登录设备
-    def device_login(self, connect_type):
+    def device_login(self, connect_type, timeout=50):
         # 设备登陆获取设备信息(并设置为工厂模式，设置工厂模式后设备会重启)
         for time_index in range(app_model.login_retry_max_count):
             self.show_message_signal.emit(True, f"设备登录中...{time_index}")
-            if not server.login(app_model.device_model.ip):
+            if not server.login(app_model.device_model.ip, timeout=timeout):
+                if self.login_now == 1:
+                    self.show_message_signal.emit(False, f"设备登录失败")
+                    self.login_now = 0
+                    return
                 time.sleep(1)
                 continue
             device_info = server.get_device_info()
             if not device_info:
                 self.show_message_signal.emit(False, "获取设备信息失败")
+                self.login_now = 0
                 return
             body = device_info.get("body")
             if not body:
                 self.show_message_signal.emit(False, "获取设备信息失败:body")
+                self.login_now = 0
                 return
             app_model.device_model.sn = body.get("serial_num")
             app_model.device_model.board_version = body.get("board_version")
@@ -105,11 +118,13 @@ class CommonBarController(BaseController):
 
         if connect_type == 0:
             self.show_message_signal.emit(True, "登录成功")
+            server.ctrl_osd(0)
         elif connect_type == 1:
             self.show_message_signal.emit(True, "标定完成，确认标定结果")
         else:
             self.show_message_signal.emit(True, "设备重启完成")
         self.signal_start_video_server.emit()
+        self.login_now = 0
 
     # 根据配置文件初始化相机与地址的配对关系
     def start_video_server(self):

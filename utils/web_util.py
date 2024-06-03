@@ -17,10 +17,15 @@ def post(device, url="/request.php", params=None, files=None, data=None, timeout
     proxies = {"http": None, "https": None}
     if not headers:
         headers = HEADERS
-    resp = device.session.post(url=f"{device.url_host}{url}", params=params, files=files, data=data, timeout=timeout,
-                               headers=headers, proxies=proxies)
-    if resp.status_code == 200:
-        return resp.content.decode(encoding=encoding, errors="ignore")
+
+    try:
+        resp = device.session.post(url=f"{device.url_host}{url}", params=params, files=files, data=data,
+                                   timeout=timeout,
+                                   headers=headers, proxies=proxies)
+        if resp.status_code == 200:
+            return resp.content.decode(encoding=encoding, errors="ignore")
+    except requests.exceptions.ConnectTimeout:
+        print("请求超时。")
     return None
 
 

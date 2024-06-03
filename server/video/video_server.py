@@ -267,10 +267,10 @@ class VideoServer(QObject):
                                 self.signal_cameraconnect_num.emit(self.camera_cnt)
                         else:
                             print(f"start play:{camera.rtsp_url} failed")
-                            with self.thread_cnt_lock:
-                                self.thread_cnt -= 1
-                                if self.thread_cnt == 0:
-                                    self.end_thread_event.set()
+                            # with self.thread_cnt_lock:
+                            #     self.thread_cnt -= 1
+                            #     if self.thread_cnt == 0:
+                            #         self.end_thread_event.set()
                             return
 
                         connect = False
@@ -278,14 +278,16 @@ class VideoServer(QObject):
                     # m_time = time.time()
 
                     # 是否暂停
-                    while self.play_thread_mutex[direction][0]:
+                    if self.play_thread_mutex[direction][0]:
                         with self.play_thread_mutex[direction][1]:
-                            print(f"{direction} is wait {bool(self.play_thread_mutex[direction][0])}")
+                            # print(f"{direction} is wait {bool(self.play_thread_mutex[direction][0])}")
                             camera.cap.release()
                             with self.camera_cnt_lock:
                                 self.camera_cnt -= 1
                                 self.signal_cameraconnect_num.emit(self.camera_cnt)
-                            self.play_thread_mutex[direction][1].wait()
+                            while self.play_thread_mutex[direction][0]:
+                                print(f"{direction} is wait {bool(self.play_thread_mutex[direction][0])}")
+                                self.play_thread_mutex[direction][1].wait()
                             connect = True
                             print(f"{direction} is resume {not bool(self.play_thread_mutex[direction][0])}")
 
@@ -340,9 +342,10 @@ class VideoServer(QObject):
                     #     print(f"total time : {cacle_time / cacle_count}")
                     # time.sleep(0.05)
 
-                with self.camera_cnt_lock:
-                    self.camera_cnt -= 1
-                    self.signal_cameraconnect_num.emit(self.camera_cnt)
+                if not connect:
+                    with self.camera_cnt_lock:
+                        self.camera_cnt -= 1
+                        self.signal_cameraconnect_num.emit(self.camera_cnt)
 
                 camera.cap.release()
                 print(f"{camera.rtsp_url} is disconnected")
@@ -428,12 +431,13 @@ class VideoServer(QObject):
         try:
             while True:
                 # 是否暂停
-                while self.play_thread_mutex[direction][0]:
+                if self.play_thread_mutex[direction][0]:
                     with self.play_thread_mutex[direction][1]:
                         with self.camera_cnt_lock:
                             self.camera_cnt -= 1
                             self.signal_cameraconnect_num.emit(self.camera_cnt)
-                        self.play_thread_mutex[direction][1].wait()
+                        while self.play_thread_mutex[direction][0]:
+                            self.play_thread_mutex[direction][1].wait()
                         with self.camera_cnt_lock:
                             self.camera_cnt += 1
                             self.signal_cameraconnect_num.emit(self.camera_cnt)
@@ -538,12 +542,13 @@ class VideoServer(QObject):
         try:
             while True:
                 # 是否暂停
-                while self.play_thread_mutex[direction][0]:
+                if self.play_thread_mutex[direction][0]:
                     with self.play_thread_mutex[direction][1]:
                         with self.camera_cnt_lock:
                             self.camera_cnt -= 1
                             self.signal_cameraconnect_num.emit(self.camera_cnt)
-                        self.play_thread_mutex[direction][1].wait()
+                        while self.play_thread_mutex[direction][0]:
+                            self.play_thread_mutex[direction][1].wait()
                         with self.camera_cnt_lock:
                             self.camera_cnt += 1
                             self.signal_cameraconnect_num.emit(self.camera_cnt)
