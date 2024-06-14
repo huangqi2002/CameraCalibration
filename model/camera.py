@@ -7,6 +7,8 @@ class Camera:
     frame_is_ok = False
 
     frame = None
+    clarity_dict = []
+
     fps = 10
     frame_time = int(1000 / fps)
     frame_error_count = 0

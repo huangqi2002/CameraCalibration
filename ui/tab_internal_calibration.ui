@@ -25,7 +25,7 @@
      <property name="title">
       <string>显示</string>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout_7" stretch="0,0,0">
+     <layout class="QVBoxLayout" name="verticalLayout_7" stretch="0,0">
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_fg">
         <item>
@@ -52,7 +52,7 @@
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_middle_2">
             <item>
-             <widget class="QLabel" name="label_img_middle_left_fg_2">
+             <widget class="QLabel" name="label_img_1">
               <property name="minimumSize">
                <size>
                 <width>72</width>
@@ -71,21 +71,9 @@
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="label_img_middle_left_fg_1">
-              <property name="minimumSize">
-               <size>
-                <width>72</width>
-                <height>48</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::Box</enum>
-              </property>
+             <widget class="QLabel" name="clarity_label_ML">
               <property name="text">
-               <string>最左截图</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
+               <string/>
               </property>
              </widget>
             </item>
@@ -103,7 +91,7 @@
              </spacer>
             </item>
             <item>
-             <widget class="QLabel" name="label_img_left_fg_1">
+             <widget class="QLabel" name="label_img_2">
               <property name="minimumSize">
                <size>
                 <width>72</width>
@@ -122,21 +110,9 @@
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="label_img_left_fg_2">
-              <property name="minimumSize">
-               <size>
-                <width>72</width>
-                <height>48</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::Box</enum>
-              </property>
+             <widget class="QLabel" name="clarity_label_L">
               <property name="text">
-               <string>左截图</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
+               <string/>
               </property>
              </widget>
             </item>
@@ -154,7 +130,7 @@
              </spacer>
             </item>
             <item>
-             <widget class="QLabel" name="label_img_right_fg_1">
+             <widget class="QLabel" name="label_img_3">
               <property name="minimumSize">
                <size>
                 <width>72</width>
@@ -173,21 +149,9 @@
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="label_img_right_fg_2">
-              <property name="minimumSize">
-               <size>
-                <width>72</width>
-                <height>48</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::Box</enum>
-              </property>
+             <widget class="QLabel" name="clarity_label_R">
               <property name="text">
-               <string>右截图</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
+               <string/>
               </property>
              </widget>
             </item>
@@ -205,7 +169,7 @@
              </spacer>
             </item>
             <item>
-             <widget class="QLabel" name="label_img_middle_right_fg_2">
+             <widget class="QLabel" name="label_img_4">
               <property name="minimumSize">
                <size>
                 <width>72</width>
@@ -224,21 +188,9 @@
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="label_img_middle_right_fg_1">
-              <property name="minimumSize">
-               <size>
-                <width>72</width>
-                <height>48</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::Box</enum>
-              </property>
+             <widget class="QLabel" name="clarity_label_MR">
               <property name="text">
-               <string>最右截图</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
+               <string/>
               </property>
              </widget>
             </item>
@@ -264,167 +216,6 @@
       <item>
        <widget class="QWidget" name="widget" native="true"/>
       </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_rx5" stretch="0,0,0">
-        <item>
-         <layout class="QVBoxLayout" name="verticalLayout_5" stretch="1,0">
-          <item>
-           <widget class="QLabel" name="label_video_left">
-            <property name="text">
-             <string>左视频</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_6">
-            <item>
-             <widget class="QLabel" name="label_img_left">
-              <property name="minimumSize">
-               <size>
-                <width>72</width>
-                <height>48</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::Box</enum>
-              </property>
-              <property name="text">
-               <string>左截图</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <spacer name="horizontalSpacer_fg_6">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="1,0">
-          <item>
-           <widget class="QLabel" name="label_video_middle">
-            <property name="text">
-             <string>中视频</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_middle">
-            <item>
-             <widget class="QLabel" name="label_img_middle">
-              <property name="minimumSize">
-               <size>
-                <width>72</width>
-                <height>48</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::Box</enum>
-              </property>
-              <property name="text">
-               <string>中截图</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <spacer name="horizontalSpacer_2">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="verticalLayout_6" stretch="1,0">
-          <item>
-           <widget class="QLabel" name="label_video_right">
-            <property name="text">
-             <string>右视频</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_middle_3">
-            <item>
-             <widget class="QLabel" name="label_img_right">
-              <property name="minimumSize">
-               <size>
-                <width>72</width>
-                <height>48</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::Box</enum>
-              </property>
-              <property name="text">
-               <string>右截图</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <spacer name="horizontalSpacer_fg_5">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <widget class="QLabel" name="label_2">
-              <property name="text">
-               <string/>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </item>
      </layout>
     </widget>
    </item>
@@ -435,52 +226,9 @@
      </property>
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,1,0">
-        <item>
-         <widget class="QLabel" name="label">
-          <property name="font">
-           <font>
-            <pointsize>16</pointsize>
-           </font>
-          </property>
-          <property name="text">
-           <string>内参文件夹路径</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_internal_file_path">
-          <property name="font">
-           <font>
-            <pointsize>16</pointsize>
-           </font>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="pushButton_set_internal_file_path">
-          <property name="minimumSize">
-           <size>
-            <width>100</width>
-            <height>40</height>
-           </size>
-          </property>
-          <property name="font">
-           <font>
-            <pointsize>16</pointsize>
-           </font>
-          </property>
-          <property name="text">
-           <string>打开文件</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
         <item>
-         <widget class="QPushButton" name="pushButton_midleft_play">
+         <widget class="QPushButton" name="pushButton_play_1">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -498,7 +246,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_left_play">
+         <widget class="QPushButton" name="pushButton_play_2">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -516,7 +264,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_right_play">
+         <widget class="QPushButton" name="pushButton_play_3">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -534,7 +282,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_midright_play">
+         <widget class="QPushButton" name="pushButton_play_4">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -552,7 +300,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_all_play">
+         <widget class="QPushButton" name="pushButton_play_5">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -595,7 +343,7 @@
          </widget>
         </item>
         <item>
-         <spacer name="horizontalSpacer_3">
+         <spacer name="horizontalSpacer_4">
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
           </property>
@@ -608,22 +356,29 @@
          </spacer>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_screenshot">
-          <property name="minimumSize">
-           <size>
-            <width>100</width>
-            <height>40</height>
-           </size>
-          </property>
+         <widget class="QCheckBox" name="clarity_checkBox">
           <property name="font">
            <font>
             <pointsize>16</pointsize>
            </font>
           </property>
           <property name="text">
-           <string>截图（左）</string>
+           <string>清晰度</string>
           </property>
          </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_3">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
         </item>
         <item>
          <widget class="QPushButton" name="pushButton_start">

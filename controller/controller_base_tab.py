@@ -65,6 +65,8 @@ class BaseControllerTab(BaseController):
     stitch_mode_fisheye = 0x010
     stitch_mode_left = 0x100
 
+    clarity_lable = None
+
     # 绑定配置文件中的相机与去显示的lable
     def bind_label_and_timer(self, direction: str, label: QLabel, rotate):
         video = Video()
@@ -218,6 +220,13 @@ class BaseControllerTab(BaseController):
         # print(f"before label.size:{label.size()}")
         label.setPixmap(pixmap)
         # print(f"after label.size:{label.size()}")
+        if app_model.video_server.clarity_test_bool:
+            if self.clarity_lable is not None and self.clarity_lable is not None:
+                try:
+                    for key, value in camera.clarity_dict.items():
+                        self.clarity_lable[key].setText("清晰度：{:.6}".format(value))
+                except Exception as e:
+                    print(f"清晰度测试时出现错误：{e}")
 
     # 设置工厂模式
     # 尝试连接设备并设置工厂模式，如果设置工厂模式失败，则等待设备重启，再次尝试设置工厂模式，直到成功设置或达到最大重试次数
@@ -342,110 +351,160 @@ class BaseControllerTab(BaseController):
 
         # 标定两目相机之间的外参
 
-    def calib_ex(self, img_0, img_1, mode="", save_path_1=None, save_path_2=None, cfg_params=None, aruco_flag=True):
-        check = True
-        if cfg_params is None:
-            with open(app_model.config_ex_internal_path, 'r') as file:
-                cfg_params = json.load(file)
-        ex_calib.set_intrinsic_params(cfg_params)
-        ret = True
-        if aruco_flag:
-            dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "right", False, True, m_global.board_id_fish, ""  # 双鱼眼标定模式
-            if mode == "left":  # 左边鱼眼+普通标定模式
-                dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "mid_left", False, False, m_global.board_id_left, "left_"  # 左边鱼眼+普通标定模式
-            elif mode == "right":  # 右边鱼眼+普通标定模式
-                dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "right", "mid_right", True, True, m_global.board_id_right, "right_"  # 右边鱼眼+普通标定模式
+    # def calib_ex(self, img_0, img_1, mode="", save_path_1=None, save_path_2=None, cfg_params=None, aruco_flag=True):
+    #     check = True
+    #     if cfg_params is None:
+    #         with open(app_model.config_ex_internal_path, 'r') as file:
+    #             cfg_params = json.load(file)
+    #     ex_calib.set_intrinsic_params(cfg_params)
+    #     ret = True
+    #     if aruco_flag:
+    #         dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "right", False, True, m_global.board_id_fish, ""  # 双鱼眼标定模式
+    #         if mode == "left":  # 左边鱼眼+普通标定模式
+    #             dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "mid_left", False, False, m_global.board_id_left, "left_"  # 左边鱼眼+普通标定模式
+    #         elif mode == "right":  # 右边鱼眼+普通标定模式
+    #             dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "right", "mid_right", True, True, m_global.board_id_right, "right_"  # 右边鱼眼+普通标定模式
+    #
+    #         ex_calib.show_img = np.zeros((3000, 2960, 3))
+    #
+    #         ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate_aruco(dirct_1, img_0, dic_size=5, dic_num=1000,
+    #                                                                        board_width=m_global.bW,
+    #                                                                        board_height=m_global.bH,
+    #                                                                        board_spacer=m_global.bSpacer,
+    #                                                                        board_id=board_id,
+    #                                                                        square_size=m_global.bSize,
+    #                                                                        board_num=m_global.bNum,
+    #                                                                        save_path=save_path_1,
+    #                                                                        check_mode=True,
+    #                                                                        rotate=rotate_1)
+    #         src_point_dict_1 = ex_calib.perspec_point
+    #         undistorted_img_1 = ex_calib.undistorted_img
+    #
+    #         if not ret:
+    #             self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
+    #             print(f"{prefix}{dirct_1} ex calib filed")
+    #             return ret, cfg_params
+    #         print(f"rvecs_1:\n{rvecs_1}")
+    #         print(f"tvecs_1:\n{tvecs_1}")
+    #         print(f"{prefix}{dirct_1} ex calib ok")
+    #
+    #
+    #         ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate_aruco(dirct_2, img_1, dic_size=5, dic_num=1000,
+    #                                                                        board_width=m_global.bW,
+    #                                                                        board_height=m_global.bH,
+    #                                                                        board_spacer=m_global.bSpacer,
+    #                                                                        board_id=board_id,
+    #                                                                        square_size=m_global.bSize,
+    #                                                                        board_num=m_global.bNum,
+    #                                                                        save_path=save_path_2,
+    #                                                                        check_mode=True,
+    #                                                                        rotate=rotate_2)
+    #         src_point_dict_2 = ex_calib.perspec_point
+    #         undistorted_img_2 = ex_calib.undistorted_img
+    #
+    #         if not ret:
+    #             self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
+    #             print(f"{prefix}{dirct_2} ex calib failed")
+    #             return ret, cfg_params
+    #         # print(f"rvecs_2:\n{rvecs_2}")
+    #         # print(f"tvecs_2:\n{tvecs_2}")
+    #         print(f"{prefix}{dirct_2} ex calib ok")
+    #     else:
+    #         dirct_1, dirct_2, prefix = "left", "right", ""  # 双鱼眼标定模式
+    #         if mode == "left":  # 左边鱼眼+普通标定模式
+    #             dirct_1, dirct_2, prefix = "left", "mid_left", "left_"  # 左边鱼眼+普通标定模式
+    #         elif mode == "right":  # 右边鱼眼+普通标定模式
+    #             dirct_1, dirct_2, prefix = "right", "mid_right", "right_"  # 右边鱼眼+普通标定模式
+    #         ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate(dirct_1, img_0, board_width=m_global.bW,
+    #                                                                  board_height=m_global.bH,
+    #                                                                  square_size=m_global.bSize, save_path=save_path_1,
+    #                                                                  check_mode=True)
+    #         if not ret:
+    #             self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
+    #             print(f"{prefix}{dirct_1} ex calib filed")
+    #             return ret, cfg_params
+    #         print(f"{prefix}{dirct_1} ex calib ok")
+    #
+    #         ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate(dirct_2, img_1, board_width=m_global.bW,
+    #                                                                  board_height=m_global.bH,
+    #                                                                  square_size=m_global.bSize, save_path=save_path_2,
+    #                                                                  check_mode=True)
+    #
+    #         if not ret:
+    #             self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
+    #             print(f"{prefix}{dirct_2} ex calib failed")
+    #             return ret, cfg_params
+    #         print(f"{prefix}{dirct_1} ex calib ok")
+    #
+    #     common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
+    #     # 输出具有相同键的元素
+    #     distance = 0.0
+    #     distance_count = 0
+    #     prespec_point_1, prespec_point_2 = [], []
+    #     for key in common_keys:
+    #         # print(np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2)))
+    #         distance += np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2))
+    #         distance_count += 1
+    #         prespec_point_1.append(src_point_dict_1[key])
+    #         prespec_point_2.append(src_point_dict_2[key])
+    #
+    #     src_point_dict_all = np.array(list(src_point_dict_1.values()))
+    #
+    #     distance /= distance_count
+    #     print(f"distance : {distance}\n")
+    #     if distance > 0.01:
+    #         self.show_message_signal.emit(False, "拼接标定误差较大")
+    #         print("拼接标定误差较大")
+    #         ret = False
+    #
+    #     cfg_params[prefix + 'rvecs_1'] = rvecs_1.flatten().tolist()
+    #     cfg_params[prefix + 'tvecs_1'] = tvecs_1.flatten().tolist()
+    #     cfg_params[prefix + 'rvecs_2'] = rvecs_2.flatten().tolist()
+    #     cfg_params[prefix + 'tvecs_2'] = tvecs_2.flatten().tolist()
+    #
+    #     M, mask = cv2.findHomography(np.array(prespec_point_2), np.array(prespec_point_1), cv2.RANSAC)
+    #     cfg_params[prefix + 'M'] = M.flatten().tolist()
+    #
+    #     # show
+    #     warped_image = cv2.warpPerspective(undistorted_img_2, M, (int(undistorted_img_1.shape[1]), int(undistorted_img_1.shape[0])))
+    #     warped_image = cv2.resize(warped_image, (600, 400))
+    #
+    #     src_point_dict_all = cv2.warpPerspective(src_point_dict_all, M, (int(undistorted_img_1.shape[1]), int(undistorted_img_1.shape[0])))
+    #     src_point_dict_all
+    #
+    #     # cv::Point3f
+    #     # p(x, y, 1);
+    #     #
+    #     # p = M * p; // src -> dst
+    #     # // p = M.inv() * p; // dst -> src
+    #     # p = p * (1.0 / p.z);
+    #     #
+    #     # // 将Point3f转换为Point2f
+    #     # cv::Point2f
+    #     # point(p.x, p.y);
+    #
+    #     # for i in range(len(prespec_point_1)):
+    #     #     points = prespec_point_1[i]
+    #     #     cv2.circle(undistorted_img_1, (int(points[0]), int(points[1])), 2, (255, 0, 0), -1)
+    #     # for i in range(len(prespec_point_2)):
+    #     #     points = prespec_point_2[i]
+    #     #     cv2.circle(undistorted_img_2, (int(points[0]), int(points[1])), 2, (255, 0, 0), -1)
+    #
+    #     for i in range(len(prespec_point_2)):
+    #         points = prespec_point_2[i]
+    #         cv2.circle(undistorted_img_2, (int(points[0]), int(points[1])), 2, (255, 0, 0), -1)
+    #
+    #
+    #     undistorted_img_2 = cv2.resize(undistorted_img_2, (600, 400))
+    #     undistorted_img_1 = cv2.resize(undistorted_img_1, (600, 400))
+    #     cv2.imshow('warped_image', warped_image)
+    #     cv2.imshow('undistorted_img_1', undistorted_img_1)
+    #     cv2.imshow('undistorted_img_2', undistorted_img_2)
+    #     cv2.waitKey(0)
+    #
+    #     return ret, cfg_params
 
-            ex_calib.show_img = np.zeros((3000, 2960, 3))
-
-            ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate_aruco(dirct_1, img_0, dic_size=5, dic_num=1000,
-                                                                           board_width=m_global.bW,
-                                                                           board_height=m_global.bH,
-                                                                           board_spacer=m_global.bSpacer,
-                                                                           board_id=board_id,
-                                                                           square_size=m_global.bSize,
-                                                                           board_num=m_global.bNum,
-                                                                           save_path=save_path_1,
-                                                                           check_mode=True,
-                                                                           rotate=rotate_1)
-
-            if not ret:
-                self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
-                print(f"{prefix}{dirct_1} ex calib filed")
-                return ret, cfg_params
-            print(f"rvecs_1:\n{rvecs_1}")
-            print(f"tvecs_1:\n{tvecs_1}")
-            print(f"{prefix}{dirct_1} ex calib ok")
-
-            ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate_aruco(dirct_2, img_1, dic_size=5, dic_num=1000,
-                                                                           board_width=m_global.bW,
-                                                                           board_height=m_global.bH,
-                                                                           board_spacer=m_global.bSpacer,
-                                                                           board_id=board_id,
-                                                                           square_size=m_global.bSize,
-                                                                           board_num=m_global.bNum,
-                                                                           save_path=save_path_2,
-                                                                           check_mode=True,
-                                                                           rotate=rotate_2)
-
-            if not ret:
-                self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
-                print(f"{prefix}{dirct_2} ex calib failed")
-                return ret, cfg_params
-            # print(f"rvecs_2:\n{rvecs_2}")
-            # print(f"tvecs_2:\n{tvecs_2}")
-            print(f"{prefix}{dirct_2} ex calib ok")
-        else:
-            dirct_1, dirct_2, prefix = "left", "right", ""  # 双鱼眼标定模式
-            if mode == "left":  # 左边鱼眼+普通标定模式
-                dirct_1, dirct_2, prefix = "left", "mid_left", "left_"  # 左边鱼眼+普通标定模式
-            elif mode == "right":  # 右边鱼眼+普通标定模式
-                dirct_1, dirct_2, prefix = "right", "mid_right", "right_"  # 右边鱼眼+普通标定模式
-            ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate(dirct_1, img_0, board_width=m_global.bW,
-                                                                     board_height=m_global.bH,
-                                                                     square_size=m_global.bSize, save_path=save_path_1,
-                                                                     check_mode=True)
-            if not ret:
-                self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
-                print(f"{prefix}{dirct_1} ex calib filed")
-                return ret, cfg_params
-            print(f"{prefix}{dirct_1} ex calib ok")
-
-            ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate(dirct_2, img_1, board_width=m_global.bW,
-                                                                     board_height=m_global.bH,
-                                                                     square_size=m_global.bSize, save_path=save_path_2,
-                                                                     check_mode=True)
-
-            if not ret:
-                self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
-                print(f"{prefix}{dirct_2} ex calib failed")
-                return ret, cfg_params
-            print(f"{prefix}{dirct_1} ex calib ok")
-
-        common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
-        # 输出具有相同键的元素
-        distance = 0.0
-        distance_count = 0
-        for key in common_keys:
-            # print(np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2)))
-            distance += np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2))
-            distance_count += 1
-        distance /= distance_count
-        print(f"distance : {distance}\n")
-        if distance > 0.01:
-            self.show_message_signal.emit(False, "拼接标定误差较大")
-            print("拼接标定误差较大")
-            ret = False
-
-        cfg_params[prefix + 'rvecs_1'] = rvecs_1.flatten().tolist()
-        cfg_params[prefix + 'tvecs_1'] = tvecs_1.flatten().tolist()
-        cfg_params[prefix + 'rvecs_2'] = rvecs_2.flatten().tolist()
-        cfg_params[prefix + 'tvecs_2'] = tvecs_2.flatten().tolist()
-
-        return ret, cfg_params
-
-        # 进行外参计算
-
+    # 进行外参计算
     def get_ex_stitch(self, stitch_mode=stitch_mode_fisheye | stitch_mode_left | stitch_mode_right):
         self.show_message_signal.emit(True, "开始计算相机外参")
         cfg_params = None
@@ -458,6 +517,7 @@ class BaseControllerTab(BaseController):
                                             save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
                                             save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
                                             cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
+
         if stitch_mode & self.stitch_mode_left:
             img_name_1, img_name_2 = "L_L", "ML_L"
             img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")

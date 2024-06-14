@@ -13,7 +13,10 @@ from server.external.ex_Calib import ex_calib
 from internal.IntrinsicCalibration.intrinsicCalib import InCalibrator, CalibMode
 from server.internal.internal_server import create_internal
 
-rtsp_url = "rtsp://192.168.109.98:8557"
+import img2pdf
+
+
+rtsp_url = "rtsp://192.168.109.90:8557"
 rtsp_url_0 = rtsp_url + "/left_main_1_0"
 rtsp_url_1 = rtsp_url + "/out_left_sub_3_1"
 rtsp_url_2 = rtsp_url + "/out_right_sub_4_1"
@@ -32,11 +35,16 @@ in_cfg_path = "../configs/internal/external_cfg_90.json"
 thread_state_event = threading.Event()
 
 bW = 9
-bH = 6
+bH1 = 7
+bNum1 = 25
+bH2 = 7
+bNum2 = 0
+bH = 8
 aruco_dictionary_num = 5
 bSize = 50
-bSpacer = 1
+bSpacer = 0
 bNum = 20
+white_pixs = 20
 
 # 计数器
 thread_count = 1
@@ -80,21 +88,53 @@ def read_rtsp_stream(input_para):
 
 def gen_test():
     aruco_tool.set_aruco_dictionary(aruco_dictionary_num, 1000)
-    img_path = "charuco_board.png"
-    board_size = 200
-    aruco_tool.set_charuco_board((bW + 1, (bH + 1) * bNum + bSpacer * (bNum - 1)))
-    aruco_tool.charuco_gen(((bW + 1) * board_size, ((bH + 1) * bNum + bSpacer * (bNum - 1)) * board_size), img_path)
+    img_path = "../charuco/charuco_board.png"
+    dpi = 300
+    board_size = bSize
+
+    scale_gen = 8
+    white_pix = white_pixs * scale_gen
+
+    aruco_tool.set_charuco_board((bW + 1, (bH1 + 1) * bNum1 + bSpacer * bNum1 + (bH2 + 1) * bNum2 + bSpacer * (bNum2 - 1)))
+    aruco_tool.charuco_gen(((bW + 1) * board_size * scale_gen, ((bH1 + 1) * bNum1 + bSpacer * bNum1 + (bH2 + 1) * bNum2 + bSpacer * (bNum2 - 1)) * board_size * scale_gen), img_path)
+
     src_img = cv2.imread(img_path)
-    for i in range(bNum):
-        temp_img = src_img[((bH + 1 + bSpacer) * i) * board_size: ((bH + 1 + bSpacer) * i + bH + 1) * board_size]
-        cv2.imwrite(f"charuco_board_{i}.jpg", temp_img)
+    begin_row = 0
+    for i in range(bNum1):
+        temp_img = src_img[begin_row * board_size * scale_gen: (begin_row + bH1 + 1) * board_size * scale_gen]
+        temp_img = cv2.copyMakeBorder(temp_img, white_pix, white_pix, white_pix, white_pix, cv2.FONT_HERSHEY_SIMPLEX, value=(255, 255, 255))
+        text = f"{bH1 + 1}x{bW + 1} | Checker Size: {board_size} mm | Dictionary.AruCo DICT_{aruco_dictionary_num}X{aruco_dictionary_num}."
+        cv2.putText(temp_img, text, (int(white_pix + board_size * 2.5 * scale_gen), temp_img.shape[0] - 5 * scale_gen), cv2.FONT_HERSHEY_COMPLEX, 0.25 * scale_gen, (0, 0, 0), 2)
+        begin_row += bH1 + 1 + bSpacer
+        cv2.imwrite(f"../charuco/charuco_board_{i}.jpg", temp_img)
+
+        # specify paper size (A4)
+        inpt = (img2pdf.mm_to_pt((bW + 1) * board_size + white_pix / scale_gen * 2), img2pdf.mm_to_pt((bH1 + 1) * board_size + white_pix / scale_gen * 2))
+        layout_fun = img2pdf.get_layout_fun(inpt)
+        with open(f"../charuco/board_{i}.pdf", "wb") as f:
+            f.write(img2pdf.convert(f"../charuco/charuco_board_{i}.jpg", dpi=dpi, layout_fun=layout_fun))
+
+    for i in range(bNum2):
+        temp_img = src_img[begin_row * board_size * scale_gen: (begin_row + bH2 + 1) * board_size * scale_gen]
+        temp_img = cv2.copyMakeBorder(temp_img, white_pix, white_pix, white_pix, white_pix, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+        text = f"{bH2 + 1}x{bW + 1} | Checker Size: {board_size} mm | Dictionary.AruCo DICT_{aruco_dictionary_num}X{aruco_dictionary_num}."
+        cv2.putText(temp_img, text, (int(white_pix + board_size * 2.5 * scale_gen), temp_img.shape[0] - 5 * scale_gen), cv2.FONT_HERSHEY_COMPLEX, 0.25 * scale_gen, (0, 0, 0), 2)
+        begin_row += bH2 + 1 + bSpacer
+        cv2.imwrite(f"../charuco/charuco_board_{bNum1 + i}.jpg", temp_img)
+
+        # specify paper size (A4)
+        inpt = (img2pdf.mm_to_pt((bW + 1) * board_size + white_pix / scale_gen * 2), img2pdf.mm_to_pt((bH2 + 1) * board_size + white_pix / scale_gen * 2))
+        layout_fun = img2pdf.get_layout_fun(inpt)
+        with open(f"../charuco/board_{bNum1 + i}.pdf", "wb") as f:
+            f.write(img2pdf.convert(f"../charuco/charuco_board_{bNum1 + i}.jpg", layout_fun=layout_fun))
 
 
 def play_test():
     global thread_state_event
     aruco_tool.set_aruco_dictionary(aruco_dictionary_num, 1000)
-    aruco_tool.set_charuco_board((bW + 1, (bH + 1) * bNum + bSpacer * (bNum - 1)))
+    aruco_tool.set_charuco_board((bW + 1, (bH1 + 1) * bNum1 + bSpacer * bNum1 + (bH2 + 1) * bNum2 + bSpacer * (bNum2 - 1)))
     # aruco_tool.charuco_gen((2400, 17600))
+    # aruco_tool.set_charuco_board((10, 150))
 
     # thread_state = True
     # read_frame = None
@@ -108,11 +148,15 @@ def play_test():
     thread_state_event.clear()
 
     cv2.namedWindow("RTSP Stream", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("RTSP Stream", 900, 600)
+    cv2.resizeWindow("RTSP Stream", 600, 900)
 
     max_wait_count = 30
     wait_count = 0
-    board_size = 50
+    board_size = 60
+
+    i = 0
+
+    # input_para["read_frame_state"] = True
 
     while True:
         if not input_para["read_frame_state"]:
@@ -125,11 +169,12 @@ def play_test():
         wait_count = 0
         img = input_para["read_frame"].copy()
         # img = cv2.imread("../m_data/aruco/bf/in/L/chessboard_1714387592.jpg")
-        # img = cv2.imread("charuco_board_1.jpg")
-        img = cv2.imread("../m_data/hqtest/R.jpg")
+        img = cv2.imread(f"../charuco/charuco_board_{i}.jpg")
+        i += 1
+        # img = cv2.imread("../m_data/hqtest/in_MR.jpg")
         objPoints, imgPoints, charucoIds, img = aruco_tool.charuco_detect(img, True)
         cv2.imwrite("aruco_test.jpg", img)
-        img = cv2.resize(img, (900, 600))
+        # img = cv2.resize(img, (900, 600))
         if objPoints is not None:
             objPoints = objPoints / 0.25 * board_size
         cv2.imshow("RTSP Stream", img)
@@ -348,6 +393,7 @@ def calib_ex_aruco(img_0, img_1, mode="", save_path_1=None, save_path_2=None):
                                                                    square_size=bSize, board_num=20,
                                                                    save_path=save_path_1, check_mode=True)
 
+
     if not ret:
         return
     print("L ex calib ok")
@@ -533,8 +579,10 @@ if __name__ == '__main__':
     # calib_ex_aruco_test()
     # stitch_show(img_ex_L, img_ex_R, in_cfg_path)
     play_test()
+    # gen_test()
     # play_four()
     # frame_1 = cv2.imread("..\\m_data\\hqtest\\ex_L.jpg")
     # frame_2 = cv2.imread("..\\m_data\\hqtest\\ex_R.jpg")
     # stitch_show(frame_1, frame_2, "../configs/internal/external_cfg.json")
     # stitch_show_1(frame_1, frame_2, "../configs/internal/external_cfg_90.json")
+

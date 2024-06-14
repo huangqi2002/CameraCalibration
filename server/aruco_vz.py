@@ -2,6 +2,8 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 
+from utils.run_para import m_global
+
 
 # ARuco类
 class aruco_vz():
@@ -19,6 +21,12 @@ class aruco_vz():
             6: {50: aruco.DICT_6X6_50, 100: aruco.DICT_6X6_100, 250: aruco.DICT_6X6_250, 1000: aruco.DICT_6X6_1000},
             7: {50: aruco.DICT_7X7_50, 100: aruco.DICT_7X7_100, 250: aruco.DICT_7X7_250, 1000: aruco.DICT_7X7_1000}
         }
+
+    def init(self):
+        aruco_tool.set_aruco_dictionary(m_global.dicSize, 1000)
+        aruco_tool.set_charuco_board((m_global.bW + 1,
+                                      (m_global.bH + 1) * m_global.bNum + m_global.bSpacer * (
+                                              m_global.bNum - 1)))
 
     # 根据尺寸，数量获取aruco字典
     def get_aruco_dictionary(self, size, count):
@@ -115,9 +123,9 @@ class aruco_vz():
             # if charucoCorners.shape[0] >= 10:
             if paint:
                 # self.draw_charuco_corners(ret_img, charucoCorners)
-                cv2.aruco.drawDetectedCornersCharuco(ret_img, charucoCorners, charucoIds, cornerColor=(0, 255, 0))
-        # if paint:
-        #     cv2.aruco.drawDetectedMarkers(ret_img, markerCorners, markerIds)
+                # cv2.aruco.drawDetectedCornersCharuco(ret_img, charucoCorners, charucoIds, cornerColor=(0, 255, 0))
+                cv2.aruco.drawDetectedMarkers(ret_img, markerCorners, markerIds, borderColor=(255, 0, 0))
+                print(f"min : {markerIds.min()}   max : {markerIds.max()}   len : {markerIds.max() - markerIds.min() + 1}")
         # print(len(charucoCorners))
 
         return objPoints, imgPoints, charucoIds, ret_img

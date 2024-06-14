@@ -51,6 +51,12 @@ class CommonBarController(BaseController):
         self.log.log_debug(f"on_choose_device_type: {device_type}")
         if self.device_type == device_type:
             return
+
+        self.view.pushButton_connect_device.setEnabled(False)  # 禁用按钮
+        QTimer.singleShot(1000, lambda: self.view.pushButton_connect_device.setEnabled(True))
+        if app_model.is_connected:
+            self.disconnect_device()
+
         self.device_type = device_type
         self.signal_change_device_type.emit(device_type)
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import json
+import time
 
 import numpy as np
 
@@ -78,21 +79,25 @@ def stitch_test(filePath):
                                                                  img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize,
                                                                  bSpacer, bNum, aruco_flag, find_type)
     print(f"L Intrinsic Calibration Ok\n")
+    # time.sleep(0.2)
 
     mtxML, distortionML, __, __, reProjectionErrorML = runInCalib_2(mode_normal, filePath + "/ML", imgPrefix, False,
                                                                     img_sizeML[0], img_sizeML[1], bW, bH, bSize,
                                                                     bSpacer, bNum, aruco_flag, find_type)
     print(f"ML Intrinsic Calibration Ok\n")
+    # time.sleep(0.2)
 
     mtxMR, distortionMR, __, __, reProjectionErrorMR = runInCalib_2(mode_normal, filePath + "/MR", imgPrefix, False,
                                                                     img_sizeMR[0], img_sizeMR[1], bW, bH, bSize,
                                                                     bSpacer, bNum, aruco_flag, find_type)
     print(f"MR Intrinsic Calibration Ok\n")
+    # time.sleep(0.2)
 
     mtxR, distortionR, __, __, reProjectionErrorR = runInCalib_2(mode, filePath + "/R", imgPrefix, False,
                                                                  img_sizeLR_NEW[0], img_sizeLR_NEW[1], bW, bH, bSize,
                                                                  bSpacer, bNum, aruco_flag, find_type)
     print(f"R  Intrinsic Calibration Ok\n")
+    # time.sleep(0.2)
 
     if mtxL is None or distortionL is None or reProjectionErrorL is None:
         return False, f"L NoBoeardError"
@@ -129,8 +134,11 @@ def get_stitch(file_path, success_signal, error_signal):
         success, result = stitch_test(file_path)
         if success:
             success_signal.emit(result)
+            return True
         else:
             error_signal.emit(f"内参获取失败：{result}")
+            return False
     except Exception as e:
         error_signal.emit(f"内参获取失败：{e}")
+        return False
     # print("get_stitch")

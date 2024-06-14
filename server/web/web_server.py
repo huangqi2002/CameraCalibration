@@ -159,6 +159,7 @@ class DeviceServer:
                 return None
             print("get_external_cfg_data:", resp)
             return json.loads(resp)
+            # return json.loads(resp)
         except Exception as e:
             print("get_external_cfg_data: exception", e)
 
@@ -309,6 +310,5 @@ class DeviceServer:
         except Exception as e:
             print(f"{resp_type} json except: {e}")
         return False
-
 
 server = DeviceServer()

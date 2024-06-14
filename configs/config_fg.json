@@ -1,5 +1,5 @@
 {
-  "ip": "192.168.109.98",
+  "ip": "192.168.109.90",
   "username": "admin",
   "password": "admin",
   "m_connect_local": true,
@@ -15,5 +15,5 @@
   "board_id_fish": 7,
   "board_id_left": 15,
   "board_id_right": 15,
-  "inter_calib_precision" : 0.1
+  "inter_calib_precision" : 0.3
 }

@@ -18,6 +18,9 @@ class ExternalCalibrator:
         self.intrinsic_params = intrinsic_params
         self.show_img = np.zeros((3000, 2960, 3))
 
+        self.perspec_point = None
+        self.undistorted_img = None
+
     def set_intrinsic_params(self, internal_cfg):
         self.intrinsic_params = internal_cfg
         # with open(internal_cfg_path, 'r') as file:
@@ -87,7 +90,6 @@ class ExternalCalibrator:
         if rotate:
             board_dict_index = (board_dict_index + rotate * 2) % 4
         # print(f"board_dict_index : {board_dict_index}")
-
 
         # 过滤掉为空的组
         self.objectPoints = [arr.astype(np.float32) for arr in temp_obj_point_list if arr.size > 0]
@@ -179,6 +181,7 @@ class ExternalCalibrator:
 
     def calibrate_aruco(self, dirct, img, dic_size=5, dic_num=1000, board_width=11, board_height=8, board_spacer=1,
                         board_id=0, square_size=25, board_num=10, save_path=None, check_mode=False, rotate=False):
+        self.perspec_point = {}
         ret, rvecs, tvecs, point_dict = False, None, None, {}
         if dirct is None or self.intrinsic_params is None:
             return ret, rvecs, tvecs
@@ -191,6 +194,20 @@ class ExternalCalibrator:
         mtx = np.array(intrinsic_params_dirct[2:11]).reshape(3, 3)
         dist = np.array(intrinsic_params_dirct[11:])
         dist_e = np.zeros_like(dist)
+
+        # 图像去畸变
+        if dirct == "left" or dirct == "right":
+            new_size = (img.shape[1], img.shape[0])
+            # 畸变校正
+            new_camera_matrix = np.multiply(mtx, [[0.6, 1, 1], [1, 0.6, 1], [1, 1, 1]])
+            mapx, mapy = cv2.fisheye.initUndistortRectifyMap(mtx, dist, np.eye(3), new_camera_matrix, new_size, cv2.CV_32FC1)
+            self.undistorted_img = cv2.remap(img, mapx, mapy, cv2.INTER_LINEAR)
+        else:
+            new_size = (img.shape[1], img.shape[0])
+            # 畸变校正
+            new_camera_matrix = np.multiply(mtx, [[0.8, 1, 1], [1, 0.8, 1], [1, 1, 1]])
+            mapx, mapy = cv2.initUndistortRectifyMap(mtx, dist, np.eye(3), new_camera_matrix, new_size, cv2.CV_32FC1)
+            self.undistorted_img = cv2.remap(img, mapx, mapy, cv2.INTER_LINEAR)
 
         ok = self.get_corners_aruco(img, dic_size, dic_num, board_width, board_height, board_spacer, board_id,
                                     square_size,
@@ -207,20 +224,32 @@ class ExternalCalibrator:
 
         if ok:
             temp_imgPoints = copy.deepcopy(self.imgPoints)
+            perspec_points = copy.deepcopy(self.imgPoints)
+
             for i in range(len(self.imgPoints)):
                 PointsNdarray = self.imgPoints[i]
+                PointsNdarray_perspec = perspec_points[i]
                 # 亚像素级别的角点优化
                 PointsNdarray = cv2.cornerSubPix(gray, PointsNdarray, (11, 11), (-1, -1), criteria)
+                PointsNdarray_perspec = cv2.cornerSubPix(gray, PointsNdarray_perspec, (11, 11), (-1, -1), criteria)
                 if dirct == "left" or dirct == "right":
-                    cv2.fisheye.undistortPoints(PointsNdarray, mtx, dist, PointsNdarray)
+                    cv2.fisheye.undistortPoints(PointsNdarray, mtx, dist, PointsNdarray, P=mtx)
+                    mtx_p = mtx.copy()
+                    mtx_p[0, 0] *= 0.6
+                    mtx_p[1, 1] *= 0.6
+                    cv2.fisheye.undistortPoints(PointsNdarray_perspec, mtx, dist, PointsNdarray_perspec, P=mtx_p)
                 else:
-                    cv2.undistortPoints(PointsNdarray, mtx, dist, PointsNdarray)
+                    cv2.undistortPoints(PointsNdarray, mtx, dist, PointsNdarray, P=mtx)
+                    mtx_p = mtx.copy()
+                    mtx_p[0, 0] *= 0.8
+                    mtx_p[1, 1] *= 0.8
+                    cv2.undistortPoints(PointsNdarray_perspec, mtx, dist, PointsNdarray_perspec, P=mtx_p)
 
-                points = PointsNdarray[:, 0, :]
-                # 使用广播将每个点的坐标进行相应的转换
-                points[:, 0] = points[:, 0] * mtx[0][0] + mtx[0][2]
-                points[:, 1] = points[:, 1] * mtx[1][1] + mtx[1][2]
-                PointsNdarray[:, 0, :] = points
+                # points = PointsNdarray[:, 0, :]
+                # # 使用广播将每个点的坐标进行相应的转换
+                # points[:, 0] = points[:, 0] * mtx[0][0] + mtx[0][2]
+                # points[:, 1] = points[:, 1] * mtx[1][1] + mtx[1][2]
+                # PointsNdarray[:, 0, :] = points
 
                 for j in range(PointsNdarray.shape[0]):
                     points = PointsNdarray[j][0]
@@ -254,6 +283,8 @@ class ExternalCalibrator:
                     PointsNdarray = temp_imgPoints[i]
                     PointsIdNdarray = self.point_id_list[i]
 
+                    PointsNdarray_perspec = perspec_points[i]
+
                     if dirct == "left" or dirct == "right":
                         cv2.fisheye.undistortPoints(PointsNdarray, mtx, dist, PointsNdarray, rvecs_mat)
                     else:
@@ -263,10 +294,14 @@ class ExternalCalibrator:
                         points = PointsNdarray[j][0]
                         point_id = PointsIdNdarray[j][0][0]
 
+                        points_perspec = PointsNdarray_perspec[j][0]
+
                         points[0] = (points[0] - 1 * tvecs_1[0] / 1000) * (tvecs_1[2] / 1000) + 0.1
                         points[1] = (points[1] - 1 * tvecs_1[1] / 1000) * (tvecs_1[2] / 1000) + 0.1
 
                         point_dict[f"{point_id}"] = points
+                        self.perspec_point[f"{point_id}"] = points_perspec
+
                         # print(points)
                         if j == 0:
                             cv2.circle(self.show_img, (int(points[0] * 1000), int(points[1] * 1000)), 5, (1, 1, 1), -1)
@@ -361,7 +396,7 @@ class ExternalCalibrator:
                 # cv2.imshow("show_img_1", show_img)
                 # cv2.waitKey(0)
                 show_img *= 255
-                # cv2.imwrite(f"./result/{os.path.basename(save_path)}_{dirct}_check.jpg", show_img)
+                cv2.imwrite(f"./result/{os.path.basename(save_path)}_{dirct}_check.jpg", show_img)
 
         # 返回结果
         return ret, rvecs, tvecs, point_dict

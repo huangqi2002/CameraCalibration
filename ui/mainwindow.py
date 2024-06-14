@@ -9,7 +9,6 @@ from ui.ui_base import BaseView
 from ui.ui_mainwindow import Ui_MainWindow
 from ui.widget_common_bar import WidgetCommonBar
 from ui.tab_internal_calibration import TabInternalCalibration
-from ui.tab_video_calibration import TabVideoCalibration
 from ui.tab_video_result import TabVideoResult
 from ui.widget_log_view import WidgetLogView
 
@@ -37,11 +36,9 @@ class MainWindow(QtWidgets.QMainWindow, BaseView, Ui_MainWindow):
         self.verticalLayout.addWidget(self.widget_common_bar)
 
         self.tab_internal_calibration = TabInternalCalibration()
-        self.tab_video_calibration = TabVideoCalibration()
         self.tab_video_result = TabVideoResult()
         self.main_tab_widget = QTabWidget(self)
         self.main_tab_widget.addTab(self.tab_internal_calibration, self.tr("内参标定"))
-        self.main_tab_widget.addTab(self.tab_video_calibration, self.tr("标定拼接"))
         self.main_tab_widget.addTab(self.tab_video_result, self.tr("内参拼接结果"))
         self.main_tab_widget.currentChanged.connect(self.signal_tab_changed)
         self.verticalLayout.addWidget(self.main_tab_widget, stretch=1)

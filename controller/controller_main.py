@@ -5,6 +5,7 @@ import os
 from model.app import app_model
 from model.config import Config
 from model.device import Device
+from server.aruco_vz import aruco_tool
 from server.video.video_server import VideoServer
 
 from controller.controller_base import BaseController
@@ -15,6 +16,7 @@ from controller.controller_video_result import VideoResultController
 from controller.controller_log_view import LogViewController
 from utils.run_para import m_global
 
+
 class MainController(BaseController):
     device_model = None
 
@@ -22,8 +24,6 @@ class MainController(BaseController):
     common_bar_controller = None
     # 内参标定界面
     internal_calibration_controller = None
-    # 外参标定界面
-    video_calibration_controller = None
     # 拼接结果显示界面
     video_result_controller = None
     log_view_controller = None
@@ -32,7 +32,8 @@ class MainController(BaseController):
         self.init_model()  # 读取配置文件，初始化model
         self.init_controller()  # 初始化界面控制器
         self.init_server()  # 初始化视频服务器
-        self.init_parameter() # 初始化参数
+        self.init_parameter()  # 初始化参数
+        aruco_tool.init()  # 初始化aruco检测器
 
         # 初始化选择标定拼接Tab以及FG类型
         self.view.switch_tab_index(0)
@@ -83,11 +84,6 @@ class MainController(BaseController):
         self.internal_calibration_controller.reboot_finish_signal.connect(self.on_reboot_finish)
         self.internal_calibration_controller.signal_reboot_device.connect(self.on_reboot_device)
         self.internal_calibration_controller.start_video_fg_once.connect(self.start_video_fg_inter_once)
-        # 外参标定界面
-        self.video_calibration_controller = VideoCalibrationController(self.view.tab_video_calibration)
-        self.video_calibration_controller.show_message_signal.connect(self.on_show_message)
-        self.video_calibration_controller.reboot_finish_signal.connect(self.on_reboot_finish)
-        self.video_calibration_controller.signal_reboot_device.connect(self.on_reboot_device)
         # 拼接结果显示界面
         self.video_result_controller = VideoResultController(self.view.tab_video_result)
         self.video_result_controller.show_message_signal.connect(self.on_show_message)
@@ -100,16 +96,10 @@ class MainController(BaseController):
         self.log.log_debug("on_tab_changed", index)
         # 切换界面非本界面则暂停一切显示
         if self.internal_calibration_controller.tab_index == index:
-            self.video_calibration_controller.on_tab_changed(index)
             self.video_result_controller.on_tab_changed(index)
             self.internal_calibration_controller.on_tab_changed(index)
-        elif self.video_calibration_controller.tab_index == index:
-            self.internal_calibration_controller.on_tab_changed(index)
-            self.video_result_controller.on_tab_changed(index)
-            self.video_calibration_controller.on_tab_changed(index)
         elif self.video_result_controller.tab_index == index:
             self.internal_calibration_controller.on_tab_changed(index)
-            self.video_calibration_controller.on_tab_changed(index)
             self.video_result_controller.on_tab_changed(index)
 
     # 切换界面以刷新fg内参界面显示
@@ -120,7 +110,6 @@ class MainController(BaseController):
     # 切换fg,rx5类型
     def on_change_device_type(self, device_type):
         self.internal_calibration_controller.on_change_device_type(device_type)
-        self.video_calibration_controller.on_change_device_type(device_type)
 
     # 显示日志
     def on_show_log_view(self, is_show):
@@ -129,13 +118,11 @@ class MainController(BaseController):
     # 连接设备
     def on_connect_device(self, connect_state):
         self.internal_calibration_controller.on_connect_device(connect_state)
-        self.video_calibration_controller.on_connect_device(connect_state)
         self.video_result_controller.on_connect_device(connect_state)
 
     # 重启设备
     def on_reboot_device(self):
         self.internal_calibration_controller.on_reboot_device()
-        self.video_calibration_controller.on_reboot_device()
         self.video_result_controller.on_reboot_device()
 
     # 初始化视频服务器
@@ -158,8 +145,6 @@ class MainController(BaseController):
         m_global.inter_calib_precision = app_model.config_fg.get("inter_calib_precision")
         m_global.aruco_flag = app_model.config_fg.get("aruco_flag")
         m_global.find_type = app_model.config_fg.get("find_type")
-
-
 
     # 设置界面上面message栏显示的信息内容
     def on_show_message(self, status, msg):

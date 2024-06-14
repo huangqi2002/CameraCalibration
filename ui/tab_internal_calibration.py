@@ -13,50 +13,71 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        self.set_choose_file_visible(False)
+        self.screen_lable_list = None
+        self.pushButton_play_list = None
+        self.position_type_text = None
 
-        self.screen_lable_list = [self.label_img_left_fg_1, self.label_img_left_fg_2,
-                                  self.label_img_middle_left_fg_1, self.label_img_middle_left_fg_2,
-                                  self.label_img_middle_right_fg_1, self.label_img_middle_right_fg_2,
-                                  self.label_img_right_fg_1, self.label_img_right_fg_2]
-        for i in range(len(self.screen_lable_list)):
-            if i % 2 == 1:
-                self.screen_lable_list[i].hide()
+        # for i in range(len(self.screen_lable_list)):
+        #     if i % 2 == 1:
+        #         self.screen_lable_list[i].hide()
 
-        self.pushbotton_text = ["截图（左）", "截图（左）",
-                                "截图（最左）", "截图（最左）",
-                                "截图（最右）", "截图（最右）",
-                                "截图（右）", "截图（右）", "一键标定"]
-
-        self.pushButton_screenshot.setStyleSheet("QPushButton:pressed { background-color: #666; }"
-                                                 "QPushButton:disabled { background-color: #444; color: #999; }")
+        # self.pushbotton_text = ["截图（左）", "截图（左）",
+        #                         "截图（最左）", "截图（最左）",
+        #                         "截图（最右）", "截图（最右）",
+        #                         "截图（右）", "截图（右）", "一键标定"]
 
         self.pushButton_start.setStyleSheet("QPushButton:pressed { background-color: #666; }"
                                             "QPushButton:disabled { background-color: #444; color: #999; }")
-        self.pushButton_play_list = [self.pushButton_left_play, self.pushButton_midleft_play,
-                                     self.pushButton_midright_play, self.pushButton_right_play, self.pushButton_all_play]
-        self.position_type_text = ["左", "最左", "最右", "右", "全视野"]
-        for pushButton_play, type_text in zip(self.pushButton_play_list, self.position_type_text):
-            pushButton_play.setStyleSheet("QPushButton{ background-color: #444; color: #999; }"
-                                          "QPushButton:pressed { background-color: #666; }"
-                                          "QPushButton:disabled  { background-color: #FFF; color: #000; }")
+        self.pushButton_type_change("FG")
 
-            pushButton_play.setText(type_text)
-
-        self.start_ok = False
         self.update()
 
         # 防止界面大小不可调节
         self.label_video_fg.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
-
-    def set_choose_file_visible(self, visible=True):
-        self.label.setVisible(visible)
-        self.lineEdit_internal_file_path.setVisible(visible)
-        self.pushButton_set_internal_file_path.setVisible(visible)
-
     def set_video_left(self, video_data):
         self.label_video_left.setPixmap(video_data)
+
+    def pushButton_type_change(self, device_type):
+        if self.screen_lable_list is not None:
+            for lable in self.screen_lable_list:
+                lable.setVisible(False)
+        if self.pushButton_play_list is not None:
+            for pushButton in self.pushButton_play_list:
+                pushButton.setVisible(False)
+
+        if device_type == "RX5":
+            self.screen_lable_list = [self.label_img_1, self.label_img_2,
+                                      self.label_img_3, self.label_img_4]
+            self.pushButton_play_list = [self.pushButton_play_1, self.pushButton_play_2,
+                                         self.pushButton_play_3, self.pushButton_play_4]
+            self.position_type_text = ["左", "中", "右", "全视野"]
+            for pushButton_play, type_text in zip(self.pushButton_play_list, self.position_type_text):
+                pushButton_play.setStyleSheet("QPushButton{ background-color: #444; color: #999; }"
+                                              "QPushButton:pressed { background-color: #666; }"
+                                              "QPushButton:disabled  { background-color: #FFF; color: #000; }")
+
+                pushButton_play.setText(type_text)
+        else:
+            self.screen_lable_list = [self.label_img_1, self.label_img_2,
+                                      self.label_img_3, self.label_img_4]
+            self.pushButton_play_list = [self.pushButton_play_1, self.pushButton_play_2,
+                                         self.pushButton_play_3, self.pushButton_play_4,
+                                         self.pushButton_play_5]
+            self.position_type_text = ["左", "最左", "最右", "右", "全视野"]
+            for pushButton_play, type_text in zip(self.pushButton_play_list, self.position_type_text):
+                pushButton_play.setStyleSheet("QPushButton{ background-color: #444; color: #999; }"
+                                              "QPushButton:pressed { background-color: #666; }"
+                                              "QPushButton:disabled  { background-color: #FFF; color: #000; }")
+
+                pushButton_play.setText(type_text)
+
+        if self.screen_lable_list is not None:
+            for lable in self.screen_lable_list:
+                lable.setVisible(True)
+        if self.pushButton_play_list is not None:
+            for pushButton in self.pushButton_play_list:
+                pushButton.setVisible(True)
 
     def get_video_left_size(self):
         size = self.label_video_left.size()
@@ -84,19 +105,6 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
     def set_video_fg_visible(self, visible):
         self.label_video_fg.setVisible(visible)
 
-    def set_choose_file_lineedit(self, msg):
-        self.lineEdit_internal_file_path.setText(msg)
-
-    def get_choose_file_lineedit(self):
-        return self.lineEdit_internal_file_path.text()
-
-    def on_choose_file(self):
-        root_path = QFileDialog.getExistingDirectory(self, '选择数据文件夹', os.getcwd())
-        if root_path == '':
-            return None
-        self.set_choose_file_lineedit(root_path)
-        return root_path
-
     def set_image_left(self, img_path):
         pixmap = self.scale_pixmap_in_label(img_path, self.label_img_left)
         self.label_img_left.setPixmap(pixmap)
@@ -116,19 +124,12 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
             return
         if not os.path.exists(img_path):
             return
-        elif screen_label_count < -1 or screen_label_count > 7:
+        elif screen_label_count < -1 or screen_label_count > 3:
             print("label_count out of index\n")
             return
         label = self.screen_lable_list[screen_label_count]
-        pixmap = self.scale_pixmap_in_label(img_path, self.label_img_right)
+        pixmap = self.scale_pixmap_in_label(img_path, label)
         label.setPixmap(pixmap)
-
-    def set_screenshot_button_text(self, set_screenshot_button_text_count):
-        self.pushButton_screenshot.setText(self.pushbotton_text[set_screenshot_button_text_count])
-
-    def set_screenshot_button_enable(self, enable):
-        self.pushButton_screenshot.setEnabled(enable)
-        # self.pushButton_screenshot.setVisible(enable)
 
     def set_position_type_button_enable(self, index):
         for i in range(len(self.pushButton_play_list)):
@@ -139,7 +140,6 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         # self.pushButton_screenshot.setVisible(enable)
 
     def set_start_button_enable(self, enable):
-        self.start_ok = enable
         self.pushButton_start.setEnabled(enable)
 
     def set_layout_middle_visible(self, visible):
@@ -148,16 +148,13 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
         self.label_img_spacer.setVisible(visible)
         # self.pushButton_middle_play.setVisible(visible)
 
-    def set_layout_fg(self, visible):
-        self.hide_layout_widgets(self.horizontalLayout_fg, visible)
-        self.pushButton_screenshot.setEnabled(visible)
-        if visible:
-            self.pushButton_start.setEnabled(self.start_ok)
-
-    def set_layout_rx5(self, visible):
-        self.hide_layout_widgets(self.horizontalLayout_rx5, visible)
-        if visible:
-            self.pushButton_start.setEnabled(True)
+    # def set_layout_fg(self, visible):
+    #     self.hide_layout_widgets(self.horizontalLayout_fg, visible)
+    #
+    # def set_layout_rx5(self, visible):
+    #     self.hide_layout_widgets(self.horizontalLayout_rx5, visible)
+    #     if visible:
+    #         self.pushButton_start.setEnabled(True)
 
     def hide_layout_widgets(self, layout, visible):
         # 遍历布局内所有元素
@@ -174,9 +171,9 @@ class TabInternalCalibration(BaseView, Ui_TabInternalCalibration):
             elif isinstance(item, QtWidgets.QLayoutItem):
                 self.hide_layout_widgets(item.layout(), visible)
 
-        for i in range(len(self.screen_lable_list)):
-            if i % 2 == 1:
-                self.screen_lable_list[i].hide()
+        # for i in range(len(self.screen_lable_list)):
+        #     if i % 2 == 1:
+        #         self.screen_lable_list[i].hide()
 
     @staticmethod
     def set_spacer_visible(spacer, visible):

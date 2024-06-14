@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import copy
 import json
 import os
 import shutil
@@ -13,6 +14,8 @@ from PyQt5.QtWidgets import QLabel
 
 from controller.controller_base_tab import BaseControllerTab, lists_equal, calibrate_para_gen
 from model.app import app_model
+from server.aruco_vz import aruco_tool
+from server.camera_calib import Camera_Cali
 from server.external.ex_Calib import ex_calib
 from server.internal.boardSplit import getBoardPosition
 from server.internal.internal_server import *
@@ -20,9 +23,10 @@ from server.web.web_server import *
 
 from utils.run_para import m_global
 
+
 class InternalCalibrationController(BaseControllerTab):
     video_map = {}
-    internal_data_path = None
+    internal_data_path: str = None
     internal_data = None
     work_thread = None
     work_thread_state = False
@@ -43,31 +47,32 @@ class InternalCalibrationController(BaseControllerTab):
     one_click_thread_event = None
     one_click_thread = None
     direction_list = None
-    screeshot_buttom_timer = None
+    chessboard = None
+    calib_parameter = None
+    camera_cali = None
 
     def __init__(self, base_view, base_model=None):
         super().__init__(base_view, base_model)
 
     def init(self):
-        self.screeshot_buttom_timer = QTimer(self)
-        self.screeshot_buttom_timer.timeout.connect(partial(self.view.set_screenshot_button_enable, True))
-
         self.tab_index = 0
+
+        # 一键标定
+        self.view.pushButton_start.clicked.connect(self.on_start)
 
         # 控件初始化
         self.view.undistorted_checkBox.setChecked(False)
+        self.view.clarity_checkBox.setChecked(False)
 
         # 链接UI事件
-        self.view.pushButton_set_internal_file_path.clicked.connect(self.on_choose_file)
-        self.view.pushButton_start.clicked.connect(self.on_start)
-        self.view.pushButton_screenshot.clicked.connect(self.on_screenshot)
         self.view.undistorted_checkBox.stateChanged.connect(self.undistorted)
+        self.view.clarity_checkBox.stateChanged.connect(self.clarity_test)
 
-        self.view.pushButton_left_play.clicked.connect(self.position_play)
-        self.view.pushButton_midleft_play.clicked.connect(self.position_play)
-        self.view.pushButton_midright_play.clicked.connect(self.position_play)
-        self.view.pushButton_right_play.clicked.connect(self.position_play)
-        self.view.pushButton_all_play.clicked.connect(self.position_play)
+        self.view.pushButton_play_1.clicked.connect(self.position_play)
+        self.view.pushButton_play_2.clicked.connect(self.position_play)
+        self.view.pushButton_play_3.clicked.connect(self.position_play)
+        self.view.pushButton_play_4.clicked.connect(self.position_play)
+        self.view.pushButton_play_5.clicked.connect(self.position_play)
 
         self.show_image_signal.connect(self.on_show_image)
         self.show_image_fg_signal.connect(self.on_show_image_fg)
@@ -84,333 +89,186 @@ class InternalCalibrationController(BaseControllerTab):
 
         self.direction_list = ["left", "middle_left", "middle_right", "right", "all"]
 
+        self.dirct_trans = {"L": "left", "ML": "mid_left", "MR": "mid_right", "R": "right", "left": "L",
+                            "mid_left": "ML", "mid_right": "MR", "right": "R"}
+        self.clarity_lable = {"left": self.view.clarity_label_L, "middle_left": self.view.clarity_label_ML,
+                              "middle_right": self.view.clarity_label_MR, "right": self.view.clarity_label_R}
+
         # 控制一键标定进程
         self.one_click_thread = False
         self.one_click_thread_event = threading.Event()
 
+        # 角点
+        self.chessboard = {}
+        # 标定参数
+        self.calib_parameter = {}
+        self.camera_cali = Camera_Cali()
+
     # 切换设备类型
     def on_change_device_type(self, device_type):
         self.device_type = device_type
-        if device_type == "FG":
-            self.view.set_layout_fg(True)
-            self.view.set_layout_rx5(False)
-        else:
-            self.view.set_layout_fg(False)
-            self.view.set_layout_rx5(True)
+        self.view.pushButton_type_change(device_type)
+        # if device_type == "FG":
+            # self.view.set_layout_fg(True)
+            # self.view.set_layout_rx5(False)
+        # else:
+            # self.view.set_layout_fg(False)
+            # self.view.set_layout_rx5(True)
 
-    # 选择内参存储文件路径
-    def on_choose_file(self):
-        self.internal_data_path = self.view.on_choose_file()
-
-    # 开始标定
+    # 一键标定槽函数
     def on_start(self):
-        if self.work_thread_state:
+        if self.view.position_type_text[self.position_index] != "全视野":
             return
 
         self.view.set_start_button_enable(False)
-        # 获取实时文件夹路径
-        self.internal_data_path = self.view.get_choose_file_lineedit()
-        if not self.internal_data_path:
-            ## 创建目录
-            sn = app_model.device_model.sn
-            if not sn:
-                self.log.log_err("sn获取失败")
-                self.show_message_signal.emit(False, "sn获取失败")
-                self.view.set_start_button_enable(True)
-                return
 
-            internal_data_path = os.path.join(app_model.work_path_internal, sn)
-            if not os.path.exists(internal_data_path):
-                os.makedirs(internal_data_path)
-            self.internal_data_path = internal_data_path
-
-        if not self.internal_data_path:
-            self.view.set_start_button_enable(True)
-            self.show_message_signal.emit(False, "内参保存路径创建失败")
-            return
-
-        self.work_thread_state = True
-        # 创建线程执行任务
-        self.work_thread = threading.Thread(target=self.get_inter_stitch, daemon=True)
-        self.work_thread.start()
-        # 弹出对话框，进制界面操作
-        # self.view.show_loading(msg="正在处理内参计算...")
-
-    # 开始标定外参
-    def on_start_ex(self, internal_path=None):
-        if self.work_thread_state:
-            return
-        self.view.set_screenshot_button_enable(False)
-        self.view.set_start_button_enable(False)
-        ## 创建目录
+        # 创建目录
         sn = app_model.device_model.sn
         if not sn:
             self.log.log_err("sn获取失败")
-            self.show_message_signal.emit(False, "sn获取失败")
             self.view.set_start_button_enable(True)
-            self.view.set_screenshot_button_enable(True)
             return
 
-        external_data_path = os.path.join(app_model.work_path_external, sn)
-        if not os.path.exists(external_data_path):
-            os.makedirs(external_data_path)
-        self.external_data_path = external_data_path
-
-        if not self.external_data_path:
-            self.view.set_start_button_enable(True)
-            self.view.set_screenshot_button_enable(True)
-            self.show_message_signal.emit(False, "外参保存路径创建失败")
-            return
-        # ML_L
-        if internal_path is not None:
-            for key, values in {'L': ['L', "L_L"], 'ML': ["ML_L"], 'MR': ["MR_R"], 'R': ['R', "R_R"]}.items():
-                for value in values:
-                    source_file = f"{internal_path}\\{key}\\chessboard_{key}.jpg"
-                    target_file = f"{self.external_data_path}\\chessboard_{value}.jpg"
-                    shutil.copy(source_file, target_file)
-                    print(f"Successfully copied {source_file} to {target_file}")
-
-        self.work_thread_state = True
-        # 创建线程执行任务
-        self.work_thread = threading.Thread(target=self.get_ex_stitch, daemon=True)
-        self.work_thread.start()
-        # 弹出对话框，进制界面操作
-        # self.view.show_loading(msg="正在处理内参计算...")
-
-    def get_ex_stitch(self):
-        ex_calib_ok, cfg_params = super().get_ex_stitch()
-        if not ex_calib_ok:
-            self.show_message_signal.emit(False, "外参标定失败...")
-        else:
-            # 保存文件
-            try:
-                result_json = json.dumps(cfg_params, indent=4)
-                print("JSON serialization successful.")
-            except Exception as e:
-                print(f"An error occurred during JSON serialization: {e}")
-            self.save_external_file(result_json)
-            self.show_message_signal.emit(True, "参数保存本地成功")
-            print("save_external_file success")
-
-            # 上传文件
-            self.show_message_signal.emit(True, "上传拼接结果")
-            filename = "external_cfg.json"
-            result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
-                                      f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
-            if not result:
-                self.show_message_signal.emit(False, "上传拼接文件失败")
-                server.logout()
-            else:
-                self.show_message_signal.emit(True, "上传拼接文件成功")
-                self.show_message_signal.emit(True, "标定完成")
-
-        self.view.set_screenshot_button_enable(True)
-        return ex_calib_ok
-
-    # 截图相机位置切换槽函数
-    def position_play(self):
-        if self.work_thread_state:
-            return
-        sender_button = self.sender()
-        button_name = sender_button.text()
-        try:
-            index = self.view.position_type_text.index(button_name)
-            self.view.set_position_type_button_enable(index)
-            self.on_position_type_changed(index)
-        except ValueError:
-            print(f"The element {button_name} is not in the list.")
-
-    # 截图相机位置切换函数
-    def on_position_type_changed(self, index):
-        self.view.set_screenshot_button_text(index * 2)
-        self.position_index = index
-        # 发出显示信号
-        self.show_message_signal.emit(True, self.view.position_type_text[self.position_index] + "相机截图")
-        # 更改显示视频
-        if index != 4:
-            self.start_video_unique([{"direction": self.direction_list[index],
-                                      "label": self.view.label_video_fg, "rotate": 0}])
-        else:  # 全视野截图
-            self.start_video_all(self.direction_list, self.view.label_video_fg, 0)
-
-        # self.start_video_fg_once.emit()
-        # 如果视频还没连接上，使截图按钮不可使
-        # if app_model.video_server.camera_state(self.direction_list[index]):
-        #     self.view.set_screenshot_button_enable(False)
-
-    # 截图按钮槽函数
-    def on_screenshot(self):
-        self.view.set_screenshot_button_enable(False)
-        # self.screeshot_buttom_timer.start(3000)
-
-        # 获取实时文件夹路径
-        self.internal_data_path = self.view.get_choose_file_lineedit()
-        if not self.internal_data_path:
-            # 创建目录
-            sn = app_model.device_model.sn
-            if not sn:
-                self.log.log_err("sn获取失败")
-                self.view.set_screenshot_button_enable(True)
-                return
-
-            internal_data_path = os.path.join(app_model.work_path_internal, sn)
-            # 第一次截图之前已经存在，则删除文件夹
-            if self.screenshot_count == 0:
-                self.create_path_new(internal_data_path)
-            self.internal_data_path = internal_data_path
+        internal_data_path = os.path.join(app_model.work_path_internal, sn)
+        # 第一次截图之前已经存在，则删除文件夹
+        if self.screenshot_count == 0:
+            self.create_path_new(internal_data_path)
+        self.internal_data_path = internal_data_path
 
         if not self.internal_data_path:
-            self.view.set_screenshot_button_enable(True)
-
+            self.view.set_start_button_enable(True)
             return
 
         if self.work_thread_state:
-            self.view.set_screenshot_button_enable(True)
+            self.view.set_start_button_enable(True)
             return
 
         self.work_thread_state = True
         # 创建线程执行任务
         self.view.undistorted_checkBox.setChecked(False)
-        if self.view.position_type_text[self.position_index] != "全视野":
-            self.work_thread = threading.Thread(target=self.save_screenshot, daemon=True)
-        else:
-            self.work_thread = threading.Thread(target=self.one_click_calibration, daemon=True)
+        # self.view.clarity_checkBox.setChecked(False)
+        self.work_thread = threading.Thread(target=self.one_click_calibration, daemon=True)
         self.work_thread.start()
 
-    # 去畸变按钮槽函数
-    def undistorted(self, state):
-        app_model.video_server.set_undistorted_bool(state)
-
-    # def update_frame(self, camera, video):
-    #     # print(f" update_frame in : {self.undistorted_bool}")
-    #     # print(f"{camera.rtsp_url} update_frame\n")
-    #     if camera is None or camera.frame is None:
-    #         # self.log.log_err(f"Tab({self.tab_index}), Invalid camera or frame")
-    #         return
-    #     frame = camera.frame
-    #
-    #     if video is None or video.label is None:
-    #         self.log.log_err(f"Tab({self.tab_index}), Invalid video or label")
-    #         return
-    #     label = video.label
-    #
-    #     frame_rotated = None
-    #     rotate = video.rotate
-    #     label_size = label.size()
-    #     if rotate == 0:
-    #         frame_resized = cv2.resize(frame, (label_size.width(), label_size.height() - 1))
-    #         frame_rotated = frame_resized
-    #     else:
-    #         frame_resized = cv2.resize(frame, (label_size.height() - 1, label_size.width()))
-    #         # print("update_frame, frame_resized", frame_resized.shape)
-    #         if rotate == 90:
-    #             frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_90_CLOCKWISE)
-    #         elif rotate == 180:
-    #             frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_180)
-    #         elif rotate == 270:
-    #             frame_rotated = cv2.rotate(frame_resized, cv2.ROTATE_90_COUNTERCLOCKWISE)
-    #
-    #     if frame_rotated is None:
-    #         return
-    #     frame_rgb = cv2.cvtColor(frame_rotated, cv2.COLOR_BGR2RGB)
-    #     h, w, ch = frame_rgb.shape
-    #     bytes_per_line = ch * w
-    #     q_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-    #     pixmap = QPixmap.fromImage(q_image)
-    #     # new_pixmap = pixmap.scaled(2960, 1664)
-    #     # print(f"before label.size:{label.size()}")
-    #     label.setPixmap(pixmap)
-    #     # print(f"after label.size:{label.size()}")
-
-    # 实时显示图像
-    def on_show_image(self, direction, filepath):
-        if direction == "left":
-            self.view.set_image_left(filepath)
-        if direction == "middle":
-            self.view.set_image_middle(filepath)
-        if direction == "right":
-            self.view.set_image_right(filepath)
-
-    # 实时显示截图图像(fg)
-    def on_show_image_fg(self, screen_label_count, filepath):
-        self.view.set_image_fg(screen_label_count, filepath)
-
-    # 保存帧
-    def save_frame(self):
-        self.show_message_signal.emit(True, "数据预处理")
-        # 截图到指定目录进行计算
-        internal_data_path_l = os.path.join(self.internal_data_path, "L")
-        if not os.path.exists(internal_data_path_l):
-            os.makedirs(internal_data_path_l)
-        internal_data_path_m = os.path.join(self.internal_data_path, "M")
-        if not os.path.exists(internal_data_path_m):
-            os.makedirs(internal_data_path_m)
-        internal_data_path_r = os.path.join(self.internal_data_path, "R")
-        if not os.path.exists(internal_data_path_r):
-            os.makedirs(internal_data_path_r)
-        filename = f"chessboard_{int(time.time())}.jpg"
-        ## 截图
-        left_pic_path = os.path.join(internal_data_path_l, filename)
-        middle_pic_path = os.path.join(internal_data_path_m, filename)
-        right_pic_path = os.path.join(internal_data_path_r, filename)
-        app_model.video_server.save_frame("left", left_pic_path)
-        self.show_image_signal.emit("left", left_pic_path)
-        app_model.video_server.save_frame("middle", middle_pic_path)
-        self.show_image_signal.emit("middle", middle_pic_path)
-        app_model.video_server.save_frame("right", right_pic_path)
-        self.show_image_signal.emit("right", right_pic_path)
-        ## 图像分割
-        getBoardPosition(left_pic_path, (11, 8), internal_data_path_l)
-        getBoardPosition(middle_pic_path, (11, 8), internal_data_path_m)
-        getBoardPosition(right_pic_path, (11, 8), internal_data_path_r)
-
-    # 保存帧(fg)
-    def save_screenshot(self):
+    def get_chessboard(self):
+        self.chessboard = {}
         path_name_list = ["L", "ML", "MR", "R"]
-        position = self.view.position_type_text[self.position_index]
-        # 使按钮处于失效状态
-        # self.view.set_screenshot_button_enable(False)
-        # 创建截图保存路径，存在则清空并重新创建
-        internal_data_path = os.path.join(self.internal_data_path, path_name_list[self.position_index])
-        print(f"\n{internal_data_path}\n")
-        self.create_path_new(internal_data_path)
 
-        filename = f"chessboard_{int(time.time())}.jpg"
-        pic_path = os.path.join(internal_data_path, filename)
-        # 读取文件并保存
-        if m_global.m_connect_local:
-            if self.position_index == 0:
-                frame = cv2.imread("m_data/hqtest/in_L.jpg")
-            elif self.position_index == 1:
-                frame = cv2.imread("m_data/hqtest/in_ML.jpg")
-            elif self.position_index == 2:
-                frame = cv2.imread("m_data/hqtest/in_MR.jpg")
-            else:
-                frame = cv2.imread("m_data/hqtest/in_R.jpg")
-            cv2.imwrite(pic_path, frame)
-        else:
-            ret = app_model.video_server.save_frame(self.direction_list[self.position_index], pic_path, False)
-            if ret != 0:
-                self.work_thread_state = False
-                self.view.set_screenshot_button_enable(True)
-                return
+        for position_index in range(len(path_name_list)):
+            camera_type = "fisheye"
+            if path_name_list[position_index][0] == "M":
+                camera_type = "normal"
 
-        # frame = cv2.imread("m_data/" + path_name_list[self.position_index] + ".jpg")  # hq301test
-        # cv2.imwrite(pic_path, frame)  # hq301test
+            filename = f"chessboard_{path_name_list[position_index]}.jpg"
 
-        # 将截图在lable中进行显示
-        self.show_image_fg_signal.emit(self.position_index * 2, pic_path)
-        ## 图像分割
-        getBoardPosition(pic_path, (11, 8), internal_data_path)
-        if path_name_list[self.position_index] not in self.screenshot_lable_ok:
-            self.screenshot_count += 1
-            self.screenshot_lable_ok.append(path_name_list[self.position_index])
-            # print(f"\n{self.screenshot_count}\n")
-            if self.screenshot_count == 4:
-                self.view.set_start_button_enable(True)
-        self.view.set_screenshot_button_enable(True)
-        self.work_thread_state = False
+            pic_path = os.path.join(self.internal_data_path, path_name_list[position_index], filename)
+            if not os.path.exists(pic_path):
+                print(f"{pic_path} is not exists")
+                return False
 
+            img = cv2.imread(pic_path)
+            ok, obj_point_list, img_point_list, id_dict = self.get_aruco_corners(img, f"result/{filename}")
+
+            if not ok:
+                print(f"{filename} find error")
+                self.show_message_signal.emit(False, f"{filename} chessboard find error")
+                return False
+
+            chessboard_dict = {"obj_point_list": obj_point_list, "img_point_list": img_point_list,
+                               "id_dict": id_dict, "frame_size": img.shape[1::-1], "camera_type": camera_type}
+            self.chessboard[f"{path_name_list[position_index]}"] = chessboard_dict
+            self.show_message_signal.emit(True, f"{filename} chessboard find success")
+        return True
+
+    def get_aruco_corners(self, img, save_path=None):
+        ok, obj_point_list, img_point_list = False, None, None
+        # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        ret_img_bool = False
+        if save_path is not None:
+            ret_img_bool = True
+
+        objPoints, imgPoints, charucoIds, ret_img = aruco_tool.charuco_detect(img, ret_img_bool)
+
+        # 亚像素级别的角点优化
+        # criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-6)
+        # imgPoints = cv2.cornerSubPix(gray, imgPoints, (11, 11), (-1, -1), criteria)
+
+        if objPoints is None:
+            return ok, obj_point_list, img_point_list
+
+        threshold = m_global.bW * (m_global.bH + 1 + m_global.bSpacer)
+        # 初始化一个列表来存储bNum个组
+        temp_obj_point_list = [np.empty((0, 1, 3)) for _ in range(m_global.bNum)]
+        temp_img_point_list = [np.empty((0, 1, 2)) for _ in range(m_global.bNum)]
+        temp_id_dict = {i: [] for i in range(m_global.bNum)}
+
+        # 将 objPoints 和 charucoIds 进行 zip，得到每个点对应的 charucoId
+        points_with_charuco_ids = zip(objPoints, imgPoints, charucoIds)
+
+        # 分组并筛选出满足条件的非空组
+        begin_point = np.array([0, (m_global.bH + m_global.bSpacer + 1) * 0.25, 0])
+
+        for obj_point, img_point, ids in points_with_charuco_ids:
+            if ids is not None and 0 <= ids[0] < threshold * m_global.bNum:
+                temp_ids = ids[0] // threshold
+                temp_obj_point_list[temp_ids] = np.vstack([temp_obj_point_list[temp_ids], (
+                        (obj_point[0] - begin_point * temp_ids).reshape(1, 1, -1) / 0.25 * m_global.bSize)])
+                temp_img_point_list[temp_ids] = np.vstack(
+                    [temp_img_point_list[temp_ids], img_point[0].reshape(1, 1, -1)])
+
+                temp_id_dict[temp_ids].append(ids[0])
+
+        # 过滤掉为空的组
+        obj_point_list = [arr.astype(np.float32) for arr in temp_obj_point_list if arr.size > 12 * 3]
+        img_point_list = [arr.astype(np.float32) for arr in temp_img_point_list if arr.size > 12 * 2]
+        id_dict = {index: id_list for index, id_list in temp_id_dict.items() if len(id_list) > 12}
+
+        if ret_img_bool:
+            # temp_img = cv2.resize(ret_img, (800, 600))
+            # cv2.imshow("ret_img", temp_img)
+            # cv2.waitKey(0)
+            cv2.imwrite(save_path, ret_img)
+
+        if len(obj_point_list) > 0:
+            ok = True
+        return ok, obj_point_list, img_point_list, id_dict
+
+    # 一键标定
+    def one_click_calibration(self):
+        self.calib_parameter = {}
+        # 截图
+        ret = self.save_frame_all()
+        if ret != 0:
+            self.view.set_start_button_enable(True)
+            self.work_thread_state = False
+            return
+
+        # 找角点
+        if not self.get_chessboard():
+            print("角点寻找失败")
+            self.show_message_signal.emit(False, "角点寻找失败")
+            self.view.set_start_button_enable(True)
+            self.work_thread_state = False
+            return
+
+        # 标定内参
+        if not self.create_path_and_cali_in():
+            print("内参标定失败")
+            self.view.set_start_button_enable(True)
+            self.work_thread_state = False
+            return
+
+        # 标定外参
+        # if not self.one_click_thread:
+        #     self.view.set_start_button_enable(True)
+        #     return
+        print("\n开始标定外参")
+        # 标定外参
+        self.create_path_and_cali_ex(self.internal_data_path)
+        # self.cali_ex_cfg()
+
+    # 保存所有图像
     def save_frame_all(self):
         path_name_list = ["L", "ML", "MR", "R"]
         for position_index in range(len(path_name_list)):
@@ -420,11 +278,9 @@ class InternalCalibrationController(BaseControllerTab):
             self.create_path_new(internal_data_path)
 
             # 保存截图
-            # filename = f"chessboard_{int(time.time())}.jpg"
             filename = f"chessboard_{path_name_list[position_index]}.jpg"
             pic_path = os.path.join(internal_data_path, filename)
             # 读取文件并保存
-            # print(f"path_name_list[{position_index}]{path_name_list[position_index]}")
             if m_global.m_connect_local:
                 if path_name_list[position_index] == "L":
                     frame = cv2.imread("m_data/hqtest/in_L.jpg")
@@ -438,240 +294,21 @@ class InternalCalibrationController(BaseControllerTab):
             else:
                 ret = app_model.video_server.save_frame(self.direction_list[position_index], pic_path, False)
                 if ret != 0:
-                    self.work_thread_state = False
-                    # self.view.set_screenshot_button_enable(True)
                     return -1
             self.upload_file(app_model.device_model.ip, pic_path, "/mnt/usr/kvdb/usr_data_kvdb/" + filename)
 
             # 将截图在lable中进行显示
-            self.show_image_fg_signal.emit(position_index * 2, pic_path)
-
-            if path_name_list[position_index] not in self.screenshot_lable_ok:
-                self.screenshot_count += 1
-                self.screenshot_lable_ok.append(path_name_list[position_index])
-                # print(f"\n{self.screenshot_count}\n")
-                if self.screenshot_count == 4:
-                    self.view.set_start_button_enable(True)
-        # self.view.set_screenshot_button_enable(True)
-        self.work_thread_state = False
+            self.show_image_fg_signal.emit(position_index, pic_path)
         return 0
 
-    def cali_ex_cfg(self):
-        left_para = calibrate_para_gen(direction="left", dic_size=5, dic_num=1000, board_width=7,
-                                       board_height=4, board_spacer=1, threshold_min=7, threshold_max=200,
-                                       square_size=50, board_num=10,
-                                       save_path=None)
+    # 上传文件
+    def upload_file(self, device_ip, upload_file, upload_path="/mnt/usr/kvdb/usr_data_kvdb/inter_cfg",
+                    check_mode=-1):
 
-    def one_click_calibration(self):
-        ret = self.save_frame_all()
-        if ret != 0:
-            self.view.set_screenshot_button_enable(True)
-            return
-        # 标定内参
-        self.on_start()
-
-        print("------------------------------wait")
-        self.one_click_thread_event.clear()
-        self.one_click_thread_event.wait()
-        print("------------------------------end wait")
-        if not self.one_click_thread:
-            self.view.set_screenshot_button_enable(True)
-            return
-
-        print("\n开始标定外参")
-        # 标定外参
-        self.on_start_ex(self.internal_data_path)
-        # self.cali_ex_cfg()
-
-    # 自动保存帧(fg)
-    def save_screenshot_auto(self):
-        path_name_list = ["L", "ML", "MR", "R"]
-        direction_type = self.screenshot_count // 2
-
-        if self.screenshot_count == 0:
-            self.show_message_signal.emit(True, "左相机截图")
-        elif self.screenshot_count == 8:
-            self.screeshot_buttom_timer.stop()
-            self.view.set_screenshot_button_enable(False)
-            # self.screenshot_count = 0
-            self.start_video_unique([{"direction": "left", "label": self.view.label_video_fg, "rotate": 0}])
-            self.start_video_fg_once.emit()
-            self.view.set_screenshot_button_text(self.screenshot_count)
-            self.get_inter_stitch()
-            return
-        internal_data_path = os.path.join(self.internal_data_path, path_name_list[direction_type])
-        if not os.path.exists(internal_data_path):
-            os.makedirs(internal_data_path)
-        filename = f"chessboard_{int(time.time())}.jpg"
-        ## 截图
-        pic_path = os.path.join(internal_data_path, filename)
-        # if True:
-        if m_global.m_connect_local:
-            if direction_type == 0:
-                frame = cv2.imread("m_data/hqtest/in_L.jpg")
-            elif direction_type == 1:
-                frame = cv2.imread("m_data/hqtest/in_ML.jpg")
-            elif direction_type == 2:
-                frame = cv2.imread("m_data/hqtest/in_MR.jpg")
-            else:
-                frame = cv2.imread("m_data/hqtest/in_R.jpg")
-            cv2.imwrite(pic_path, frame)
-            # app_model.video_server.save_frame(self.direction_list[direction_type], None)
-        else:
-            app_model.video_server.save_frame(self.direction_list[direction_type], pic_path)
-        self.show_image_fg_signal.emit(self.screenshot_count, pic_path)
-        self.view.set_screenshot_button_text(self.screenshot_count + 1)
-        ## 图像分割
-        getBoardPosition(pic_path, (11, 8), internal_data_path, self.screenshot_count % 2)
-        if self.screenshot_count == 1:
-            self.start_video_unique([{"direction": "middle_left", "label": self.view.label_video_fg, "rotate": 0}])
-            self.start_video_fg_once.emit()
-            self.show_message_signal.emit(True, "最左相机截图")
-
-        elif self.screenshot_count == 3:
-            self.start_video_unique([{"direction": "middle_right", "label": self.view.label_video_fg, "rotate": 0}])
-            self.start_video_fg_once.emit()
-            self.show_message_signal.emit(True, "最右相机截图")
-
-        elif self.screenshot_count == 5:
-            self.start_video_unique([{"direction": "right", "label": self.view.label_video_fg, "rotate": 0}])
-
-            self.start_video_fg_once.emit()
-            self.show_message_signal.emit(True, "右相机截图")
-        self.work_thread_state = False
-        self.view.set_screenshot_button_enable(True)
-        self.screenshot_count += 1
-
-    # 进行内参拼接
-    def get_inter_stitch(self):
-        # if not self.check_device_factory_mode():
-        #     self.work_thread_state = False
-        #     return
-        if self.device_type != "FG":
-            self.save_frame()
-
-        self.show_message_signal.emit(True, "开始计算相机内参")
-        get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
-                   self.work_thread_finish_failed_signal)
-
-    # # 进行内参拼接(fg)
-    # def get_inter_stitch_fg(self):
-    #     # if not self.check_device_factory_mode():
-    #     #     self.work_thread_state = False
-    #     #     return
-    #
-    #     self.show_message_signal.emit(True, "开始计算相机内参")
-    #     get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
-    #                self.work_thread_finish_failed_signal)
-
-    # 内参计算成功则上传参数到目标相机
-    def on_work_thread_finish_success(self, result):
-        self.view.close_loading()
-        self.work_thread = None
-        if not result:
-            self.show_message_signal.emit(False, "内参计算失败")
-            self.work_thread_state = False
-            self.one_click_thread = True
-            print("one_click_thread_event set 1")
-            self.one_click_thread_event.set()
-            return
-        self.screenshot_count = 0
-        self.screenshot_lable_ok = []
-        self.show_message_signal.emit(True, "内参计算完成")
-        self.internal_data = result
-        # self.view.set_internal_result(result)
-
-        device_ip = app_model.device_model.ip
-        internal_file = self.save_internal_file(result, self.internal_data_path)
-
-        # 生成漫游拼接所需内参
-        # ex_result = json.loads(result)
-        # ex_right_calib = ex_result['right_calib']
-        # ex_right_calib[4] = ex_right_calib[0] - ex_right_calib[4]
-        # ex_right_calib[7] = ex_right_calib[1] - ex_right_calib[7]
-        # ex_result['right_calib'] = ex_right_calib
-        # ex_result_str = json.dumps(ex_result, indent=4)
-        ex_internal_file = self.save_internal_file(result, os.path.dirname(internal_file), "external_cfg.json")
-        # 应用在设备上
-        app_model.video_server.fisheye_internal_init(ex_internal_file)
-        app_model.config_ex_internal_path = ex_internal_file
-
-        # if m_global.m_global_debug:
-        #     self.show_message_signal.emit(True, "参数结果保存成功")
-        # else:
-        self.show_message_signal.emit(True, "上传参数结果到相机")
-        self.upload_file(device_ip, internal_file)
-        print("内参标定完成")
-        # self.work_thread = threading.Thread(target=self.upload_file, args=(device_ip, internal_file), daemon=True)
-        # self.work_thread.start()
-        #
-        self.work_thread_state = False
-        self.view.set_screenshot_button_enable(True)
-        self.show_image_fg_signal.emit(-1, "")
-
-    # 内参计算失败
-    def on_work_thread_finish_failed(self, error_msg):
-        # self.view.close_loading()
-        self.show_message_signal.emit(False, f"内参处理" + error_msg)
-        if error_msg.startswith('内参获取失败：L'):
-            self.screenshot_lable_ok.remove('L')
-            self.view.set_position_type_button_enable(0)
-            self.on_position_type_changed(0)
-        elif error_msg.startswith('内参获取失败：ML'):
-            self.screenshot_lable_ok.remove('ML')
-            self.view.set_position_type_button_enable(1)
-            self.on_position_type_changed(1)
-        elif error_msg.startswith('内参获取失败：MR'):
-            self.screenshot_lable_ok.remove('MR')
-            self.view.set_position_type_button_enable(2)
-            self.on_position_type_changed(2)
-        elif error_msg.startswith('内参获取失败：R'):
-            self.screenshot_lable_ok.remove('R')
-            self.view.set_position_type_button_enable(3)
-            self.on_position_type_changed(3)
-        self.screenshot_count -= 1
-
-        self.work_thread_state = False
-        self.view.set_screenshot_button_enable(True)
-        # self.show_image_fg_signal.emit(-1, "")
-
-        self.one_click_thread = False
-        # print("one_click_thread_event set 2")
         self.one_click_thread_event.set()
+        self.one_click_thread = True
+        return True
 
-    # 保存内参参数到本地
-    @staticmethod
-    def save_internal_file(result=None, internal_file_path=None, file_name="inter_cfg.json"):
-        if not result:
-            return
-        if internal_file_path is None:
-            internal_file_path = os.path.join(os.getcwd(), "result", str(int(time.time())))
-        if not os.path.exists(internal_file_path):
-            os.makedirs(internal_file_path)
-        internal_file = os.path.join(internal_file_path, file_name)
-        with open(internal_file, "w", encoding="utf-8") as f:
-            f.write(result)
-        return internal_file
-
-    def on_btn_upload_internal_file(self):
-        self.device_ip = app_model.device_model.ip
-        # 检查本地内容
-        temp = self.view.get_internal_result()
-        if not temp:
-            if not self.internal_file:
-                self.internal_file = self.save_internal_file(temp)
-            else:
-                # 更新文件
-                self.save_internal_file(temp, os.path.dirname(self.internal_file))
-        if not self.internal_file:
-            self.show_message_signal.emit(False, "数据上传:数据内容错误")
-            return
-
-        self.work_thread = threading.Thread(target=self.upload_file, args=(self.internal_file,))
-        self.work_thread.start()
-
-    # 上传内参
-    def upload_file(self, device_ip, upload_file, upload_path="/mnt/usr/kvdb/usr_data_kvdb/inter_cfg", check_mode=-1):
         ret = False
         if not device_ip:
             self.show_message_signal.emit(False, "数据上传:设备IP异常")
@@ -698,47 +335,752 @@ class InternalCalibrationController(BaseControllerTab):
             server.logout()
 
         self.one_click_thread = True
-        # print("one_click_thread_event set 3")
         self.one_click_thread_event.set()
         return ret
 
+    # 开始标定内参
+    def create_path_and_cali_in(self):
+        # 获取sn号
+        sn = app_model.device_model.sn
+        if not sn:
+            self.log.log_err("sn获取失败")
+            self.show_message_signal.emit(False, "sn获取失败")
+            return False
+        # 创建目录
+        internal_data_path = os.path.join(app_model.work_path_internal, sn)
+        if not os.path.exists(internal_data_path):
+            os.makedirs(internal_data_path)
+        self.internal_data_path = internal_data_path
+        if not self.internal_data_path:
+            self.show_message_signal.emit(False, "内参保存路径创建失败")
+            return False
+
+        ok, result = self.cali_in()
+        if ok:
+            self.on_work_thread_finish_success(result)
+            return True
+        else:
+            self.on_work_thread_finish_failed(f"内参获取失败：{result}")
+            return False
+
+    def cali_in(self):
+        # 精度
+        precision = m_global.inter_calib_precision
+
+        for dirct in ["L", "ML", "MR", "R"]:
+            chessboard = self.chessboard[dirct]
+            obj_point_list, img_point_list, frame_size, camera_type = chessboard["obj_point_list"], chessboard[
+                "img_point_list"], chessboard["frame_size"], chessboard["camera_type"]
+
+            data = self.camera_cali.calib_in(obj_point_list, img_point_list, frame_size, camera_type)
+            if data.camera_mat is None or data.dist_coeff is None or data.reproj_err is None:
+                return False, f"{dirct} NoBoeardError"
+            elif data.reproj_err >= precision:
+                return False, f"{dirct} ReProjectionError: {data.reproj_err}"
+            print(f"{dirct} Intrinsic Calibration Ok\n")
+            self.show_message_signal.emit(True, f"{dirct} 内参标定成功")
+
+            calib_result = self.create_internal(frame_size, data.camera_mat, data.dist_coeff)
+            self.calib_parameter[f"{self.dirct_trans[dirct]}_calib"] = calib_result
+
+        result = json.dumps(self.calib_parameter, indent=4, separators=(', ', ': '), ensure_ascii=False)
+        return True, result
+
+    def create_internal(self, img_size, mtx, distortion):
+        calib = []
+        # Camera Size
+        calib.extend(list(img_size))
+        # Camera Matrix
+        mtx_array = np.array(mtx)
+        mtx_array = mtx_array.flatten()
+        calib.extend(mtx_array)
+        # Distortion Coefficient
+        distortion_array = np.array(distortion)
+        distortion_array = distortion_array.flatten()
+        calib.extend(distortion_array)
+        return calib
+
+    # # 进行内参计算
+    # def get_inter_stitch(self):
+    #     # if not self.check_device_factory_mode():
+    #     #     self.work_thread_state = False
+    #     #     return
+    #     self.show_message_signal.emit(True, "开始计算相机内参")
+    #     get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
+    #                self.work_thread_finish_failed_signal)
+
+    def create_path_and_cali_ex(self, internal_path=None):
+        # 创建目录
+        sn = app_model.device_model.sn
+        if not sn:
+            self.log.log_err("sn获取失败")
+            self.show_message_signal.emit(False, "sn获取失败")
+            self.view.set_start_button_enable(True)
+            return False
+
+        external_data_path = os.path.join(app_model.work_path_external, sn)
+        if not os.path.exists(external_data_path):
+            os.makedirs(external_data_path)
+        self.external_data_path = external_data_path
+
+        if not self.external_data_path:
+            self.view.set_start_button_enable(True)
+            self.show_message_signal.emit(False, "外参保存路径创建失败")
+            return False
+
+        if internal_path is None:
+            print(f"内参文件路径为空")
+            return False
+        try:
+            for key, values in {'L': ['L', "L_L"], 'ML': ["ML_L"], 'MR': ["MR_R"], 'R': ['R', "R_R"]}.items():
+                for value in values:
+                    source_file = f"{internal_path}\\{key}\\chessboard_{key}.jpg"
+                    target_file = f"{self.external_data_path}\\chessboard_{value}.jpg"
+                    shutil.copy(source_file, target_file)
+                    print(f"Successfully copied {source_file} to {target_file}")
+        except Exception as e:
+            print(f"复制文件时出现错误：{e}")
+            return False
+
+        self.cali_ex(app_model.config_ex_internal_path)
+
+    # 开始标定外参
+    def cali_ex(self, internal_path=None):
+        self.show_message_signal.emit(True, "开始计算相机外参")
+
+        common_board = [m_global.board_id_fish, m_global.board_id_left, m_global.board_id_right]
+        shape_normal = (1920, 1080)
+        shape_fish = (2960, 1664)
+
+        dirct_list = [["L", "R"], ["L", "ML"], ["R", "MR"]]
+        prefix_list = ["", "left_", "right_"]
+        rotate_list = [2, 1, 3]
+
+        cfg_params = None
+        with open(internal_path, 'r') as file:
+            cfg_params = json.load(file)
+
+        for i in range(len(dirct_list)):
+            dirct_1, dirct_2, prefix = dirct_list[i][0], dirct_list[i][1], prefix_list[i]
+            camera_type_1, camera_type_2 = "normal", "normal"
+            if dirct_1[0] != "M":
+                camera_type_1 = "fisheye"
+            if dirct_2[0] != "M":
+                camera_type_2 = "fisheye"
+
+            print(f"-----------------------")
+            print(f"{prefix}cali_ex begin")
+
+            ret_1, rvecs_1, tvecs_1, point_dict_1, point_dict_perspec_1 = self.cali_ex_one_camera(dirct_1,
+                                                                                                  common_board[i],
+                                                                                                  camera_type_1,
+                                                                                                  rotate_list[i])
+            print(f"{prefix}{dirct_1}:")
+            print(f"rvecs_1:\n{rvecs_1}")
+            print(f"tvecs_1:\n{tvecs_1}\n")
+            ret_2, rvecs_2, tvecs_2, point_dict_2, point_dict_perspec_2 = self.cali_ex_one_camera(dirct_2,
+                                                                                                  common_board[i],
+                                                                                                  camera_type_2,
+                                                                                                  rotate_list[i])
+            print(f"{prefix}{dirct_2}:")
+            print(f"rvecs_2:\n{rvecs_2}")
+            print(f"tvecs_2:\n{tvecs_2}")
+
+            cfg_params[prefix + 'rvecs_1'] = rvecs_1.flatten().tolist()
+            cfg_params[prefix + 'tvecs_1'] = tvecs_1.flatten().tolist()
+            cfg_params[prefix + 'rvecs_2'] = rvecs_2.flatten().tolist()
+            cfg_params[prefix + 'tvecs_2'] = tvecs_2.flatten().tolist()
+
+            common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
+            prespec_point_1, prespec_point_2 = [], []
+            distance, distance_count = 0.0, 0
+            for common_key in common_keys:
+                prespec_point_1.append(point_dict_perspec_1[common_key])
+                prespec_point_2.append(point_dict_perspec_2[common_key])
+                distance += np.sqrt(np.sum((point_dict_1[common_key] - point_dict_2[common_key]) ** 2))
+                distance_count += 1
+            distance /= distance_count
+            print(f"拼接参数误差 : {distance}")
+            if distance > 0.01:
+                self.show_message_signal.emit(False, "拼接标定误差较大")
+                print("拼接标定误差较大")
+                self.ex_cali_finish(False, cfg_params)
+                return
+
+            if prefix != "":
+                M, mask = cv2.findHomography(np.array(prespec_point_1), np.array(prespec_point_2), cv2.RANSAC)
+                cfg_params[prefix + 'M'] = M.flatten().tolist()
+
+                self.prespec_test(dirct_1, dirct_2, M)
+
+        self.ex_cali_finish(True, cfg_params)
+
+    def prespec_test(self, dirct_1, dirct_2, M):
+        # 创建一个空白的黑色画布
+        canvas = np.zeros((1080, 1960, 3), dtype=np.uint8)
+
+        img_point_list_1 = copy.deepcopy(self.chessboard[dirct_1]['img_point_list'])
+        id_dict_1 = self.chessboard[dirct_1]['id_dict']
+        id_dict_list_1 = list(id_dict_1.keys())
+        calib_param = self.calib_parameter[self.dirct_trans[dirct_1] + "_calib"]
+        mtx_1 = np.array(calib_param[2:11]).reshape(3, 3)
+        dist_1 = np.array(calib_param[11:])
+        new_camera_matrix_1 = np.multiply(mtx_1, [[0.6, 1, 1], [1, 0.6, 1], [1, 1, 1]])
+        for index in range(len(img_point_list_1)):
+            img_points = img_point_list_1[index]
+            img_points = cv2.fisheye.undistortPoints(img_points, mtx_1, dist_1, R=new_camera_matrix_1)
+            img_points = img_points.reshape(-1, 2)
+            points_homogeneous = np.hstack([img_points, np.ones((img_points.shape[0], 1))])
+            transformed_points_homogeneous = points_homogeneous @ M.T
+            img_points = transformed_points_homogeneous[:, :2] / transformed_points_homogeneous[:, 2, np.newaxis]
+            img_point_list_1[index] = img_points.reshape(-1, 1, 2)
+
+        img_point_list_2 = copy.deepcopy(self.chessboard[dirct_2]['img_point_list'])
+        id_dict_2 = self.chessboard[dirct_2]['id_dict']
+        id_dict_list_2 = list(id_dict_2.keys())
+        calib_param = self.calib_parameter[self.dirct_trans[dirct_2] + "_calib"]
+        mtx_2 = np.array(calib_param[2:11]).reshape(3, 3)
+        dist_2 = np.array(calib_param[11:])
+        new_camera_matrix_2 = np.multiply(mtx_2, [[0.8, 1, 1], [1, 0.8, 1], [1, 1, 1]])
+        point_dict_1, point_dict_2 = {}, {}
+        for index_2 in range(len(img_point_list_2)):
+            img_points = img_point_list_2[index_2]
+            img_point_list_2[index_2] = cv2.undistortPoints(img_points, mtx_2, dist_2, R=new_camera_matrix_2)
+            # 寻找共同点
+            chessboard_id = id_dict_list_2[index_2]
+            if chessboard_id in id_dict_list_1:  # 共同标定板
+                index_1 = id_dict_list_1.index(id_dict_list_2[index_2])
+                point_dict_1.update({i: arr for i, arr in zip(id_dict_1[chessboard_id], img_point_list_1[index_1])})
+                point_dict_2.update({i: arr for i, arr in zip(id_dict_2[chessboard_id], img_point_list_2[index_2])})
+
+        common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
+        distance, distance_count = 0.0, 0
+        for common_key in common_keys:
+            distance += np.sqrt(np.sum((point_dict_1[common_key] - point_dict_2[common_key]) ** 2))
+            distance_count += 1
+
+            cv2.circle(canvas, (int(point_dict_1[common_key][0][0]), int(point_dict_1[common_key][0][1])), 5, (0, 0, 255), -1)
+            cv2.circle(canvas, (int(point_dict_2[common_key][0][0]), int(point_dict_2[common_key][0][1])), 5, (0, 255, 0), -1)
+
+        distance /= distance_count
+        print(f"透视变化误差 : {distance}")
+
+        # # 将每个点画在画布上
+        # for point_list in img_point_list_1:
+        #     for point in point_list:
+        #         x, y = point[0]
+        #         if x > 0 and y > 0:
+        #             cv2.circle(canvas, (int(x), int(y)), 5, (255, 0, 0), -1)
+        # for point_list in img_point_list_2:
+        #     for point in point_list:
+        #         x, y = point[0]
+        #         if x > 0 and y > 0:
+        #             cv2.circle(canvas, (int(x), int(y)), 5, (0, 255, 0), -1)
+
+        # path_1 = os.path.join("m_data/hqtest/611", dirct_1, "chessboard_" + dirct_1 + ".jpg")
+        # img_1 = cv2.imread(path_1)
+        # new_size = (img_1.shape[1], img_1.shape[0])
+        # 畸变校正
+        # new_camera_matrix_2 = np.multiply(mtx_1, [[0.6, 1, 1], [1, 0.6, 1], [1, 1, 1]])
+        # mapx, mapy = cv2.fisheye.initUndistortRectifyMap(mtx_1, dist_1, np.eye(3), new_camera_matrix_2, new_size,
+        #                                                  cv2.CV_32FC1)
+        # undistorted_img_1 = cv2.remap(img_1, mapx, mapy, cv2.INTER_LINEAR)
+        #
+        # calib_param = self.calib_parameter[self.dirct_trans[dirct_2] + "_calib"]
+        # mtx_2 = np.array(calib_param[2:11]).reshape(3, 3)
+        # dist_2 = np.array(calib_param[11:])
+        # path_2 = os.path.join("m_data/hqtest/611", dirct_2, "chessboard_" + dirct_2 + ".jpg")
+        # img_2 = cv2.imread(path_2)
+        # new_size = (img_2.shape[1], img_2.shape[0])
+        # # 畸变校正
+        # new_camera_matrix_2 = np.multiply(mtx_2, [[0.8, 1, 1], [1, 0.8, 1], [1, 1, 1]])
+        # mapx, mapy = cv2.initUndistortRectifyMap(mtx_2, dist_2, np.eye(3), new_camera_matrix_2, new_size,
+        #                                          cv2.CV_32FC1)
+        # undistorted_img_2 = cv2.remap(img_2, mapx, mapy, cv2.INTER_LINEAR)
+        #
+        # warped_image = cv2.warpPerspective(undistorted_img_1, M,
+        #                                    (int(undistorted_img_2.shape[1]), int(undistorted_img_2.shape[0])))
+
+        # undistorted_img_1 = cv2.resize(undistorted_img_1, (600, 400))
+        # cv2.imshow("undistorted_img_1", undistorted_img_1)
+        # undistorted_img_2 = cv2.resize(undistorted_img_2, (600, 400))
+        # cv2.imshow("undistorted_img_2", undistorted_img_2)
+        # warped_image = cv2.resize(warped_image, (600, 400))
+        # cv2.imshow("warped_image", warped_image)
+        #
+        # # # 将图像转换为浮点数类型以避免溢出
+        # img1_float = warped_image.astype(np.float32)
+        # img2_float = undistorted_img_2.astype(np.float32)
+        #
+        # add_image = img1_float + img2_float
+        # non_black_mask = np.all(warped_image > 0, axis=-1) & np.all(undistorted_img_2 > 0, axis=-1)
+        # add_image[non_black_mask] = add_image[non_black_mask] // 2
+        # add_image = np.clip(add_image, 0, 255).astype(np.uint8)
+        # add_image = cv2.resize(add_image, (600, 400))
+        # cv2.imshow("add_image", add_image)
+
+        # non_black_mask = np.all(warped_image > 0, axis=-1)
+        # undistorted_img_2[non_black_mask] = (0, 0, 0)
+        # add_image = warped_image + undistorted_img_2
+        # add_image = cv2.resize(add_image, (600, 400))
+        # cv2.imshow("add_image", add_image)
+        #
+        # canvas = cv2.resize(canvas, (500, 300))
+        # cv2.imshow("canvas", canvas)
+        # cv2.waitKey(0)
+
+    def cali_ex_one_camera(self, dirct, common_board, camera_type, rotate):
+        dirct_1_key_list = list(self.chessboard[dirct]["id_dict"].keys())
+        index = dirct_1_key_list.index(common_board)
+        obj_point_list = self.chessboard[dirct]["obj_point_list"][index]
+        img_point_list = self.chessboard[dirct]["img_point_list"][index]
+        point_id_list = self.chessboard[dirct]["id_dict"][common_board]
+        calib_param = self.calib_parameter[self.dirct_trans[dirct] + "_calib"]
+        mtx = np.array(calib_param[2:11]).reshape(3, 3)
+        dist = np.array(calib_param[11:])
+        return self.camera_cali.calib_ex(obj_point_list, img_point_list, point_id_list, mtx, dist, check_mode=True,
+                                         camera_type=camera_type, rotate=rotate)
+
+    def ex_cali_finish(self, state, cfg_params=None):
+        if not state:
+            self.show_message_signal.emit(False, "外参标定失败...")
+        else:
+            # 保存文件
+            try:
+                result_json = json.dumps(cfg_params, indent=4)
+                print("JSON serialization successful.")
+            except Exception as e:
+                print(f"An error occurred during JSON serialization: {e}")
+                return False
+
+            self.save_file(result_json, self.external_data_path, "external_cfg.json")
+            self.show_message_signal.emit(True, "参数保存本地成功")
+            print("save_external_file success")
+
+            # 上传文件
+            self.show_message_signal.emit(True, "上传拼接结果")
+            filename = "external_cfg.json"
+            result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
+                                      f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
+            if not result:
+                self.show_message_signal.emit(False, "上传拼接文件失败")
+                server.logout()
+            else:
+                self.show_message_signal.emit(True, "上传拼接文件成功")
+                self.show_message_signal.emit(True, "标定完成")
+
+        self.view.set_start_button_enable(True)
+        return state
+
+    # def cali_ex_two_camera(self):
+
+    # 开始标定外参
+    def cali_ex_1(self, internal_path=None):
+        # 创建目录
+        sn = app_model.device_model.sn
+        if not sn:
+            self.log.log_err("sn获取失败")
+            self.show_message_signal.emit(False, "sn获取失败")
+            self.view.set_start_button_enable(True)
+            return
+
+        external_data_path = os.path.join(app_model.work_path_external, sn)
+        if not os.path.exists(external_data_path):
+            os.makedirs(external_data_path)
+        self.external_data_path = external_data_path
+
+        if not self.external_data_path:
+            self.view.set_start_button_enable(True)
+            self.show_message_signal.emit(False, "外参保存路径创建失败")
+            return
+
+        if internal_path is not None:
+            for key, values in {'L': ['L', "L_L"], 'ML': ["ML_L"], 'MR': ["MR_R"], 'R': ['R', "R_R"]}.items():
+                for value in values:
+                    source_file = f"{internal_path}\\{key}\\chessboard_{key}.jpg"
+                    target_file = f"{self.external_data_path}\\chessboard_{value}.jpg"
+                    shutil.copy(source_file, target_file)
+                    print(f"Successfully copied {source_file} to {target_file}")
+
+        # self.work_thread_state = True
+        # # 创建线程执行任务
+        # self.work_thread = threading.Thread(target=self.get_ex_stitch, daemon=True)
+        # self.work_thread.start()
+        self.get_ex_stitch()
+
+    def get_ex_stitch(self):
+        ex_calib_ok, cfg_params = self.ex_cacle()
+        if not ex_calib_ok:
+            self.show_message_signal.emit(False, "外参标定失败...")
+        else:
+            # 保存文件
+            try:
+                result_json = json.dumps(cfg_params, indent=4)
+                print("JSON serialization successful.")
+            except Exception as e:
+                print(f"An error occurred during JSON serialization: {e}")
+
+            self.save_external_file(result_json)
+            self.show_message_signal.emit(True, "参数保存本地成功")
+            print("save_external_file success")
+
+            # 上传文件
+            self.show_message_signal.emit(True, "上传拼接结果")
+            filename = "external_cfg.json"
+            result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
+                                      f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
+            if not result:
+                self.show_message_signal.emit(False, "上传拼接文件失败")
+                server.logout()
+            else:
+                self.show_message_signal.emit(True, "上传拼接文件成功")
+                self.show_message_signal.emit(True, "标定完成")
+
+        self.view.set_start_button_enable(True)
+        return ex_calib_ok
+
+    # 进行外参计算
+    def ex_cacle(self):
+        self.show_message_signal.emit(True, "开始计算相机外参")
+        cfg_params = None
+        ret = False
+        img_name_1, img_name_2 = "L", "R"
+        img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
+        img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
+        ret, cfg_params = self.calib_ex(img_ex_1, img_ex_2,
+                                        save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
+                                        save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
+                                        cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
+
+        img_name_1, img_name_2 = "L_L", "ML_L"
+        img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
+        img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
+        ret, cfg_params = self.calib_ex(img_ex_1, img_ex_2, "left",
+                                        save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
+                                        save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
+                                        cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
+
+        img_name_1, img_name_2 = "R_R", "MR_R"
+        img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
+        img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
+        ret, cfg_params = self.calib_ex(img_ex_1, img_ex_2, "right",
+                                        save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
+                                        save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
+                                        cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
+
+        return ret, cfg_params
+
+    def calib_ex(self, img_0, img_1, mode="", save_path_1=None, save_path_2=None, cfg_params=None, aruco_flag=True):
+        check = True
+        if cfg_params is None:
+            with open(app_model.config_ex_internal_path, 'r') as file:
+                cfg_params = json.load(file)
+        ex_calib.set_intrinsic_params(cfg_params)
+        ret = True
+        if aruco_flag:
+            dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "right", False, True, m_global.board_id_fish, ""  # 双鱼眼标定模式
+            if mode == "left":  # 左边鱼眼+普通标定模式
+                dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "mid_left", False, False, m_global.board_id_left, "left_"  # 左边鱼眼+普通标定模式
+            elif mode == "right":  # 右边鱼眼+普通标定模式
+                dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "right", "mid_right", True, True, m_global.board_id_right, "right_"  # 右边鱼眼+普通标定模式
+
+            ex_calib.show_img = np.zeros((3000, 2960, 3))
+
+            ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate_aruco(dirct_1, img_0, dic_size=5, dic_num=1000,
+                                                                           board_width=m_global.bW,
+                                                                           board_height=m_global.bH,
+                                                                           board_spacer=m_global.bSpacer,
+                                                                           board_id=board_id,
+                                                                           square_size=m_global.bSize,
+                                                                           board_num=m_global.bNum,
+                                                                           save_path=save_path_1,
+                                                                           check_mode=True,
+                                                                           rotate=rotate_1)
+            src_point_dict_1 = ex_calib.perspec_point
+            undistorted_img_1 = ex_calib.undistorted_img
+
+            if not ret:
+                self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
+                print(f"{prefix}{dirct_1} ex calib filed")
+                return ret, cfg_params
+            print(f"rvecs_1:\n{rvecs_1}")
+            print(f"tvecs_1:\n{tvecs_1}")
+            print(f"{prefix}{dirct_1} ex calib ok")
+
+            ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate_aruco(dirct_2, img_1, dic_size=5, dic_num=1000,
+                                                                           board_width=m_global.bW,
+                                                                           board_height=m_global.bH,
+                                                                           board_spacer=m_global.bSpacer,
+                                                                           board_id=board_id,
+                                                                           square_size=m_global.bSize,
+                                                                           board_num=m_global.bNum,
+                                                                           save_path=save_path_2,
+                                                                           check_mode=True,
+                                                                           rotate=rotate_2)
+            src_point_dict_2 = ex_calib.perspec_point
+            undistorted_img_2 = ex_calib.undistorted_img
+
+            if not ret:
+                self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
+                print(f"{prefix}{dirct_2} ex calib failed")
+                return ret, cfg_params
+            print(f"{prefix}{dirct_2} ex calib ok")
+        else:
+            dirct_1, dirct_2, prefix = "left", "right", ""  # 双鱼眼标定模式
+            if mode == "left":  # 左边鱼眼+普通标定模式
+                dirct_1, dirct_2, prefix = "left", "mid_left", "left_"  # 左边鱼眼+普通标定模式
+            elif mode == "right":  # 右边鱼眼+普通标定模式
+                dirct_1, dirct_2, prefix = "right", "mid_right", "right_"  # 右边鱼眼+普通标定模式
+            ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate(dirct_1, img_0, board_width=m_global.bW,
+                                                                     board_height=m_global.bH,
+                                                                     square_size=m_global.bSize, save_path=save_path_1,
+                                                                     check_mode=True)
+            if not ret:
+                self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
+                print(f"{prefix}{dirct_1} ex calib filed")
+                return ret, cfg_params
+            print(f"{prefix}{dirct_1} ex calib ok")
+
+            ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate(dirct_2, img_1, board_width=m_global.bW,
+                                                                     board_height=m_global.bH,
+                                                                     square_size=m_global.bSize, save_path=save_path_2,
+                                                                     check_mode=True)
+
+            if not ret:
+                self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
+                print(f"{prefix}{dirct_2} ex calib failed")
+                return ret, cfg_params
+            print(f"{prefix}{dirct_1} ex calib ok")
+
+        common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
+        # 输出具有相同键的元素
+        distance = 0.0
+        distance_count = 0
+        prespec_point_1, prespec_point_2 = [], []
+        for key in common_keys:
+            distance += np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2))
+            distance_count += 1
+            prespec_point_1.append(src_point_dict_1[key])
+            prespec_point_2.append(src_point_dict_2[key])
+
+        src_point_dict_all = np.array(list(src_point_dict_1.values()))
+
+        distance /= distance_count
+        print(f"distance : {distance}\n")
+        if distance > 0.01:
+            self.show_message_signal.emit(False, "拼接标定误差较大")
+            print("拼接标定误差较大")
+            ret = False
+
+        cfg_params[prefix + 'rvecs_1'] = rvecs_1.flatten().tolist()
+        cfg_params[prefix + 'tvecs_1'] = tvecs_1.flatten().tolist()
+        cfg_params[prefix + 'rvecs_2'] = rvecs_2.flatten().tolist()
+        cfg_params[prefix + 'tvecs_2'] = tvecs_2.flatten().tolist()
+
+        M, mask = cv2.findHomography(np.array(prespec_point_1), np.array(prespec_point_2), cv2.RANSAC)
+        cfg_params[prefix + 'M'] = M.flatten().tolist()
+
+        # chessboard_2 = self.chessboard[self.dirct_trans[dirct_2]]
+
+        # show
+        ok, obj_point_list_1, img_point_list_1, id_dict_1 = self.get_aruco_corners(undistorted_img_1)
+        ok, obj_point_list_2, img_point_list_2, id_dict_2 = self.get_aruco_corners(undistorted_img_2)
+        for i in range(len(obj_point_list_1)):
+            point_list = img_point_list_1[i]
+            for point in point_list:
+                cv2.circle(undistorted_img_1, (int(point[0][0]), int(point[0][1])), 5, (0, 255, 0), -1)
+
+        warped_image = cv2.warpPerspective(undistorted_img_1, M,
+                                           (int(undistorted_img_2.shape[1]), int(undistorted_img_2.shape[0])))
+        ok, obj_point_list_warped, img_point_list_warped, id_dict_warped = self.get_aruco_corners(warped_image)
+        for i in range(len(obj_point_list_2)):
+            point_list = img_point_list_2[i]
+            for point in point_list:
+                cv2.circle(undistorted_img_2, (int(point[0][0]), int(point[0][1])), 5, (0, 0, 255), -1)
+        for i in range(len(img_point_list_warped)):
+            point_list = img_point_list_warped[i]
+            for point in point_list:
+                cv2.circle(undistorted_img_2, (int(point[0][0]), int(point[0][1])), 5, (0, 255, 0), -1)
+
+        warped_image = cv2.resize(warped_image, (600, 400))
+
+        # for i in range(len(prespec_point_2)):
+        #     points = prespec_point_2[i]
+        #     cv2.circle(undistorted_img_2, (int(points[0]), int(points[1])), 2, (255, 0, 0), -1)
+
+        # common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
+
+        undistorted_img_2 = cv2.resize(undistorted_img_2, (600, 400))
+        undistorted_img_1 = cv2.resize(undistorted_img_1, (600, 400))
+        cv2.imshow('warped_image', warped_image)
+        cv2.imshow('undistorted_img_1', undistorted_img_1)
+        cv2.imshow('undistorted_img_2', undistorted_img_2)
+        cv2.waitKey(0)
+
+        return ret, cfg_params
+
+    # 相机位置切换槽函数
+    def position_play(self):
+        if self.work_thread_state:
+            return
+        sender_button = self.sender()
+        button_name = sender_button.text()
+        try:
+            index = self.view.position_type_text.index(button_name)
+            self.view.set_position_type_button_enable(index)
+            self.on_position_type_changed(index)
+        except ValueError:
+            print(f"The element {button_name} is not in the list.")
+
+    # 相机位置切换函数
+    def on_position_type_changed(self, index):
+        self.position_index = index
+        # 发出显示信号
+        self.show_message_signal.emit(True, self.view.position_type_text[self.position_index] + "相机截图")
+        # 更改显示视频
+        if index != 4:
+            self.start_video_unique([{"direction": self.direction_list[index],
+                                      "label": self.view.label_video_fg, "rotate": 0}])
+        else:  # 全视野截图
+            self.start_video_all(self.direction_list, self.view.label_video_fg, 0)
+
+        # 去畸变按钮槽函数
+        def undistorted(self, state):
+            app_model.video_server.set_undistorted_bool(state)
+
+    # 去畸变按钮槽函数
+    def undistorted(self, state):
+        app_model.video_server.set_undistorted_bool(state)
+
+    # 清晰度测试槽函数
+    def clarity_test(self, state):
+        app_model.video_server.set_clarity_test_bool(state)
+
+    # 实时显示图像
+    def on_show_image(self, direction, filepath):
+        if direction == "left":
+            self.view.set_image_left(filepath)
+        if direction == "middle":
+            self.view.set_image_middle(filepath)
+        if direction == "right":
+            self.view.set_image_right(filepath)
+
+    # 实时显示截图图像(fg)
+    def on_show_image_fg(self, screen_label_count, filepath):
+        self.view.set_image_fg(screen_label_count, filepath)
+
+    # 内参计算成功则上传参数到目标相机
+    def on_work_thread_finish_success(self, result):
+        self.view.close_loading()
+        self.work_thread = None
+        if not result:
+            self.show_message_signal.emit(False, "内参计算失败")
+            self.work_thread_state = False
+            self.one_click_thread = True
+            # print("one_click_thread_event set 1")
+            self.one_click_thread_event.set()
+            return
+        self.screenshot_count = 0
+        self.screenshot_lable_ok = []
+        self.show_message_signal.emit(True, "内参计算完成")
+        # time.sleep(0.2)
+        self.internal_data = result
+        # self.view.set_internal_result(result)
+
+        device_ip = app_model.device_model.ip
+        internal_file = self.save_file(result, self.internal_data_path)
+        # ex_internal_file = self.save_file(result, os.path.dirname(internal_file), "external_cfg.json")
+        # 应用在设备上
+        # app_model.video_server.fisheye_internal_init(internal_file)
+        app_model.config_ex_internal_path = internal_file
+
+        self.show_message_signal.emit(True, "上传参数结果到相机")
+        self.upload_file(device_ip, internal_file)
+        print("内参标定完成")
+        #
+        self.work_thread_state = False
+        self.show_image_fg_signal.emit(-1, "")
+
+    # 内参计算失败
+    def on_work_thread_finish_failed(self, error_msg):
+        self.show_message_signal.emit(False, f"内参处理" + error_msg)
+        # if error_msg.startswith('内参获取失败：L'):
+        #     self.screenshot_lable_ok.remove('L')
+        #     self.view.set_position_type_button_enable(0)
+        #     self.on_position_type_changed(0)
+        # elif error_msg.startswith('内参获取失败：ML'):
+        #     self.screenshot_lable_ok.remove('ML')
+        #     self.view.set_position_type_button_enable(1)
+        #     self.on_position_type_changed(1)
+        # elif error_msg.startswith('内参获取失败：MR'):
+        #     self.screenshot_lable_ok.remove('MR')
+        #     self.view.set_position_type_button_enable(2)
+        #     self.on_position_type_changed(2)
+        # elif error_msg.startswith('内参获取失败：R'):
+        #     self.screenshot_lable_ok.remove('R')
+        #     self.view.set_position_type_button_enable(3)
+        #     self.on_position_type_changed(3)
+        # self.screenshot_count -= 1
+
+        self.work_thread_state = False
+
+        self.one_click_thread = False
+        self.one_click_thread_event.set()
+
+    # 保存内参参数到本地
+    @staticmethod
+    def save_internal_file(result=None, internal_file_path=None, file_name="inter_cfg.json"):
+        if not result:
+            return
+        if internal_file_path is None:
+            internal_file_path = os.path.join(os.getcwd(), "result", str(int(time.time())))
+        if not os.path.exists(internal_file_path):
+            os.makedirs(internal_file_path)
+        internal_file = os.path.join(internal_file_path, file_name)
+        with open(internal_file, "w", encoding="utf-8") as f:
+            f.write(result)
+        return internal_file
+
+    @staticmethod
+    def save_file(result=None, file_path=None, file_name="inter_cfg.json"):
+        if not result:
+            return
+        if file_path is None:
+            file_path = os.path.join(os.getcwd(), "result", str(int(time.time())))
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+        internal_file = os.path.join(file_path, file_name)
+        with open(internal_file, "w", encoding="utf-8") as f:
+            f.write(result)
+        return internal_file
+
     def check_internal_cfg(self, local_internal_cfg_path):
         return True
-        local_internal_cfg_name = local_internal_cfg_path.replace('\\', '/')
-        with open(local_internal_cfg_name, 'r') as file:
-            local_internal_cfg = json.load(file)
-
-        if not local_internal_cfg:
-            self.show_message_signal.emit(False, "获取设备本地内参文件失败:body")
-            return False
-
-        internal_cfg_info = server.get_internal_cfg()
-        if not internal_cfg_info:
-            self.show_message_signal.emit(False, "获取设备内参文件失败")
-            return False
-        internal_cfg = internal_cfg_info.get("body")
-        if not internal_cfg:
-            self.show_message_signal.emit(False, "获取设备内参文件失败:body")
-            return False
-
-        # 检查字典长度是否相等
-        if len(local_internal_cfg) != len(internal_cfg):
-            return False
-        # 逐一比较字典中的键和值
-        for key in local_internal_cfg.keys():
-            if key not in internal_cfg:
-                return False
-            if not lists_equal(local_internal_cfg[key], internal_cfg[key]):
-                return False
-
-        return True
-
-    # 重启设备
-    def reset_factory(self):
-        # self.reset_factory_mode()
-        # self.reboot_device()
-        # self.signal_reboot_device.emit()
-        self.work_thread_state = False
-        # hqtest self.show_message_signal.emit(True, "标定完成，等待设备重启后查看结果")
-        self.show_message_signal.emit(True, "标定完成")
-        # self.reboot_finish_signal.emit(2)
+        # local_internal_cfg_name = local_internal_cfg_path.replace('\\', '/')
+        # with open(local_internal_cfg_name, 'r') as file:
+        #     local_internal_cfg = json.load(file)
+        #
+        # if not local_internal_cfg:
+        #     self.show_message_signal.emit(False, "获取设备本地内参文件失败:body")
+        #     return False
+        #
+        # internal_cfg_info = server.get_internal_cfg()
+        # if not internal_cfg_info:
+        #     self.show_message_signal.emit(False, "获取设备内参文件失败")
+        #     return False
+        # internal_cfg = internal_cfg_info.get("body")
+        # if not internal_cfg:
+        #     self.show_message_signal.emit(False, "获取设备内参文件失败:body")
+        #     return False
+        #
+        # # 检查字典长度是否相等
+        # if len(local_internal_cfg) != len(internal_cfg):
+        #     return False
+        # # 逐一比较字典中的键和值
+        # for key in local_internal_cfg.keys():
+        #     if key not in internal_cfg:
+        #         return False
+        #     if not lists_equal(local_internal_cfg[key], internal_cfg[key]):
+        #         return False
+        #
+        # return True

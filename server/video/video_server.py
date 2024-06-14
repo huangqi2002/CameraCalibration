@@ -17,6 +17,7 @@ from model.app import app_model
 from model.camera import Camera
 from server.aruco_vz import aruco_tool
 from utils.run_para import m_global
+
 path_root = os.getcwd()
 path_fisheye_dll = os.path.join(path_root, "lib3rd", "fisheye", "video_fuse.dll")
 
@@ -48,6 +49,7 @@ class VideoServer(QObject):
         self.thread_cnt_lock = threading.Lock()  # 锁，用于保护线程计数器thread_cnt
 
         self.undistorted_bool = False  # 内参展示界面是否去畸变
+        self.clarity_test_bool = False  # 内参展示界面是否检测清晰度
 
         self.four_img_flag = {'middle_left': 0, 'left': 0, 'right': 0, 'middle_right': 0}
         # self.camera_L_inter = app_model.config_internal.get("left_calib")
@@ -67,56 +69,73 @@ class VideoServer(QObject):
         ex_internal_data_path = app_model.config_ex_internal_path
         if ex_internal_data_path is None:
             ex_internal_data_path = os.path.join(os.getcwd(), "configs\\internal\\external_cfg.json")
+        with open(ex_internal_data_path, 'r') as file:
+            cfg_params = file.read()
+        self.fisheye_init(cfg_params)
         # print(ex_internal_data_path)
         # ex_internal_data_path = ex_internal_data_path.encode(encoding="utf-8", errors="ignore")
-        self.fisheye_internal_init(ex_internal_data_path)
-        self.fisheye_external_init(ex_internal_data_path)
-        app_model.config_ex_internal_path = ex_internal_data_path
+        # self.fisheye_internal_init(ex_internal_data_path)
+        # self.fisheye_external_init(ex_internal_data_path)
         # self.bool_stop_get_frame = False
 
         aruco_tool.set_aruco_dictionary(5, 1000)
         aruco_tool.set_charuco_board((12, 9))
 
     # 将YUV420P转成cv::Mat格式
-    def set_external(self, external_cfg):
-        # print(external_cfg)
-        external_cfg_str = json.dumps(external_cfg)
-        external_cfg_str = external_cfg_str.encode(encoding="utf-8", errors="ignore")
-        self.fisheye_dll.fisheye_init_network(external_cfg_str)
+    # def set_external(self, external_cfg):
+    #     # print(external_cfg)
+    #     external_cfg_str = json.dumps(external_cfg)
+    #     external_cfg_str = external_cfg_str.encode(encoding="utf-8", errors="ignore")
+    #     self.fisheye_dll.fisheye_init_network(external_cfg_str)
 
-    def fisheye_ctrl(self, winpos):
-        self.fisheye_dll.fisheye_set_winpos(winpos)
+    # def fisheye_ctrl(self, winpos):
+    #     self.fisheye_dll.fisheye_set_winpos(winpos)
 
     def set_undistorted_bool(self, var):
         self.undistorted_bool = var
 
-    def fisheye_depth_set(self, depth):
-        self.depth = depth
+    def set_clarity_test_bool(self, var):
+        self.clarity_test_bool = var
 
-        move = 1.0
-        if depth == 10:
-            move = 0.0
-        self.fisheye_dll.set_deep_tvec_multiple(ctypes.c_double(depth), ctypes.c_double(move))
-        self.fisheye_dll.fisheye_set_winpos(20)
+    # def fisheye_depth_set(self, depth):
+    #     self.depth = depth
+    #
+    #     move = 1.0
+    #     if depth == 10:
+    #         move = 0.0
+    #     self.fisheye_dll.set_deep_tvec_multiple(ctypes.c_double(depth), ctypes.c_double(move))
+    #     self.fisheye_dll.fisheye_set_winpos(20)
 
-    def fisheye_internal_init(self, path):
-        internal_data_path = path.encode(encoding="utf-8", errors="ignore")
-        self.fisheye_dll.fisheye_initialize(internal_data_path)
-        with open(path, encoding="utf-8", errors="ignore") as f:
-            self.internal_data = json.load(f)
-        self.mapx = {}
-        self.mapy = {}
-        self.fisheye_ctrl(22)
-        app_model.config_ex_internal_path = path
+    # def fisheye_internal_init(self, path):
+    #     internal_data_path = path.encode(encoding="utf-8", errors="ignore")
+    #     self.fisheye_dll.fisheye_initialize(internal_data_path)
+    #     with open(path, encoding="utf-8", errors="ignore") as f:
+    #         self.internal_data = json.load(f)
+    #     self.mapx = {}
+    #     self.mapy = {}
+    #     self.fisheye_ctrl(22)
+    #     app_model.config_ex_internal_path = path
 
-    def fisheye_external_init(self, path):
-        external_data_path = path.encode(encoding="utf-8", errors="ignore")
-        self.fisheye_dll.fisheye_external_initialize(external_data_path)
-        self.fisheye_ctrl(22)
-        app_model.config_ex_internal_path = path
+    # def fisheye_external_init(self, path):
+    #     external_data_path = path.encode(encoding="utf-8", errors="ignore")
+    #     self.fisheye_dll.fisheye_external_initialize(external_data_path)
+    #     self.fisheye_ctrl(22)
+    #     app_model.config_ex_internal_path = path
 
-    def four_img_stitch(self, frame_1, frame_2):
-        if frame_1 is None or frame_2 is None:
+    # def fisheye_external_init(self, path):
+    #     external_data_path = path.encode(encoding="utf-8", errors="ignore")
+    #     self.fisheye_dll.fisheye_external_initialize(external_data_path)
+    #     self.fisheye_ctrl(22)
+    #     app_model.config_ex_internal_path = path
+
+    def fisheye_init(self, cfg):
+        self.fisheye_dll.fisheye_init.argtypes = [ctypes.c_char_p,
+                                                  ctypes.c_int,
+                                                  ctypes.c_int]
+        self.fisheye_dll.fisheye_init(cfg.encode('utf-8'), 2000, 1000)
+
+    def four_img_stitch(self, frame_1, frame_2, frame_3, frame_4):
+        if frame_1 is None or frame_2 is None or frame_3 is None or frame_4 is None:
             # print("frame is None")
             time.sleep(0.01)
             return
@@ -127,24 +146,28 @@ class VideoServer(QObject):
         # cv2.imshow("4", cv2.resize(frame_4, (400, 300)))
         # cv2.waitKey(0)
 
-        if m_global.m_connect_local:
-            frame_1 = cv2.imread("m_data/hqtest/ex_L.jpg")
-            frame_2 = cv2.imread("m_data/hqtest/ex_R.jpg")
+        # if m_global.m_connect_local:
+        #     frame_1 = cv2.imread("m_data/hqtest/in_L.jpg")
+        #     frame_2 = cv2.imread("m_data/hqtest/in_R.jpg")
+        #     frame_3 = cv2.imread("m_data/hqtest/in_ML.jpg")
+        #     frame_4 = cv2.imread("m_data/hqtest/in_MR.jpg")
 
-        height = 1200
-        width = 1600
+        height = 1000
+        width = 2000
 
-        self.fisheye_dll.fisheye_run_yuv.restype = ctypes.c_char_p
+        self.fisheye_dll.run_mat_four_image.restype = ctypes.c_char_p
 
         stitch_image = np.zeros(dtype=np.uint8, shape=(height, width, 3))
 
-        self.fisheye_dll.fisheye_run_yuv(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                         , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                         , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
-        if m_global.m_global_debug:
-            if int(time.time()) % 3 == 0:
-                cv2.imwrite('output_image.jpg', stitch_image)
-                print("保存成功")
+        self.fisheye_dll.run_mat_four_image(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                            , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                            , frame_3.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                            , frame_4.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                            , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
+        # if m_global.m_global_debug:
+        #     if int(time.time()) % 3 == 0:
+        #         cv2.imwrite('output_image.jpg', stitch_image)
+        #         print("保存成功")
         #
         # stitch_image = cv2.rotate(stitch_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
         # stitch_image = self.stitch_crop(stitch_image)
@@ -254,6 +277,7 @@ class VideoServer(QObject):
         else:
             try:
                 connect = True
+                camera.clarity_dict = {direction: -1}
                 # 连接成功开始拉视频流
                 while True:
                     if connect:
@@ -328,7 +352,11 @@ class VideoServer(QObject):
                     # print(f"{direction} is read one frame {camera.frame_is_ok}")
                     if not camera.frame_is_ok:
                         # 判断是否需要去畸变
+                        clarity = -1
                         if not self.tab_index:
+                            if self.clarity_test_bool:
+                                clarity = self.clarity_test_frame(frame)
+                                camera.clarity_dict = {direction: clarity}
                             if self.undistorted_bool:
                                 frame = self.undistorted_frame(frame, direction)
                         camera.frame = frame
@@ -417,6 +445,12 @@ class VideoServer(QObject):
         ret_frame = cv2.remap(frame, self.mapx[direction_str], self.mapy[direction_str], cv2.INTER_LINEAR)
         return ret_frame
 
+    def clarity_test_frame(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        fm = cv2.Laplacian(gray, cv2.CV_64F).var()
+        # frame = cv2.putText(frame, str(fm), (100, 100), cv2.FONT_HERSHEY_PLAIN, 5, (255, 0, 0), thickness=5)
+        return fm
+
     def get_frame_stitch(self, direction, camera: Camera):
         # 输出连接信息
         print(f"start play:{direction}")
@@ -425,8 +459,8 @@ class VideoServer(QObject):
             self.signal_cameraconnect_num.emit(self.camera_cnt)
         print(f"{direction} is connected")
 
-        # direction_list = ["middle_left", "left", "right", "middle_right"]
-        direction_list = ["left", "right"]
+        direction_list = ["middle_left", "left", "right", "middle_right"]
+        # direction_list = ["left", "right"]
 
         try:
             while True:
@@ -465,10 +499,14 @@ class VideoServer(QObject):
                 camera.frame_error_count = 0
 
                 # 拼接图片
-                frame = self.four_img_stitch(self.cameras[direction_list[0]].frame,
-                                             self.cameras[direction_list[1]].frame)
+                frame = self.four_img_stitch(self.cameras[direction_list[1]].frame,
+                                             self.cameras[direction_list[2]].frame,
+                                             self.cameras[direction_list[0]].frame,
+                                             self.cameras[direction_list[3]].frame)
                 self.cameras[direction_list[0]].frame_is_ok = False
                 self.cameras[direction_list[1]].frame_is_ok = False
+                self.cameras[direction_list[2]].frame_is_ok = False
+                self.cameras[direction_list[3]].frame_is_ok = False
 
                 # 将读取到的frame写入相机中
                 if not camera.frame_is_ok:
@@ -538,7 +576,6 @@ class VideoServer(QObject):
         print(f"{direction} is connected")
 
         direction_list = ["middle_left", "left", "right", "middle_right"]
-
         try:
             while True:
                 # 是否暂停
@@ -577,6 +614,12 @@ class VideoServer(QObject):
                                           self.cameras[direction_list[1]].frame,
                                           self.cameras[direction_list[2]].frame,
                                           self.cameras[direction_list[3]].frame)
+                clarity_dict = {}
+                if self.clarity_test_bool:
+                    clarity_dict = {direction_list[0]: self.cameras[direction_list[0]].clarity_dict[direction_list[0]],
+                                    direction_list[1]: self.cameras[direction_list[1]].clarity_dict[direction_list[1]],
+                                    direction_list[2]: self.cameras[direction_list[2]].clarity_dict[direction_list[2]],
+                                    direction_list[3]: self.cameras[direction_list[3]].clarity_dict[direction_list[3]]}
                 self.cameras[direction_list[0]].frame_is_ok = False
                 self.cameras[direction_list[1]].frame_is_ok = False
                 self.cameras[direction_list[2]].frame_is_ok = False
@@ -587,6 +630,7 @@ class VideoServer(QObject):
                     camera.frame = frame.copy()
                     # print(f"{camera}camera.frame is {camera.frame is None}")
                     camera.frame_is_ok = True
+                    camera.clarity_dict = clarity_dict
                     self.four_img_flag[direction] = 1
 
                 time.sleep(0.11)
