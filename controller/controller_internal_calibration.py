@@ -109,11 +109,11 @@ class InternalCalibrationController(BaseControllerTab):
         self.device_type = device_type
         self.view.pushButton_type_change(device_type)
         # if device_type == "FG":
-            # self.view.set_layout_fg(True)
-            # self.view.set_layout_rx5(False)
+        # self.view.set_layout_fg(True)
+        # self.view.set_layout_rx5(False)
         # else:
-            # self.view.set_layout_fg(False)
-            # self.view.set_layout_rx5(True)
+        # self.view.set_layout_fg(False)
+        # self.view.set_layout_rx5(True)
 
     # 一键标定槽函数
     def on_start(self):
@@ -181,7 +181,7 @@ class InternalCalibrationController(BaseControllerTab):
         return True
 
     def get_aruco_corners(self, img, save_path=None):
-        ok, obj_point_list, img_point_list = False, None, None
+        ok, obj_point_list, img_point_list, id_dict = False, None, None, None
         # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
         ret_img_bool = False
@@ -191,11 +191,11 @@ class InternalCalibrationController(BaseControllerTab):
         objPoints, imgPoints, charucoIds, ret_img = aruco_tool.charuco_detect(img, ret_img_bool)
 
         # 亚像素级别的角点优化
-        # criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-6)
-        # imgPoints = cv2.cornerSubPix(gray, imgPoints, (11, 11), (-1, -1), criteria)
+        # criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 1000, 1e-6)
+        # imgPoints = cv2.cornerSubPix(gray, imgPoints, (21, 21), (-1, -1), criteria)
 
         if objPoints is None:
-            return ok, obj_point_list, img_point_list
+            return ok, obj_point_list, img_point_list, id_dict
 
         threshold = m_global.bW * (m_global.bH + 1 + m_global.bSpacer)
         # 初始化一个列表来存储bNum个组
@@ -282,15 +282,19 @@ class InternalCalibrationController(BaseControllerTab):
             pic_path = os.path.join(internal_data_path, filename)
             # 读取文件并保存
             if m_global.m_connect_local:
-                if path_name_list[position_index] == "L":
-                    frame = cv2.imread("m_data/hqtest/in_L.jpg")
-                elif path_name_list[position_index] == "ML":
-                    frame = cv2.imread("m_data/hqtest/in_ML.jpg")
-                elif path_name_list[position_index] == "MR":
-                    frame = cv2.imread("m_data/hqtest/in_MR.jpg")
-                else:
-                    frame = cv2.imread("m_data/hqtest/in_R.jpg")
-                cv2.imwrite(pic_path, frame)
+                try:
+                    if path_name_list[position_index] == "L":
+                        frame = cv2.imread("m_data/hqtest/in_L.jpg")
+                    elif path_name_list[position_index] == "ML":
+                        frame = cv2.imread("m_data/hqtest/in_ML.jpg")
+                    elif path_name_list[position_index] == "MR":
+                        frame = cv2.imread("m_data/hqtest/in_MR.jpg")
+                    else:
+                        frame = cv2.imread("m_data/hqtest/in_R.jpg")
+                    cv2.imwrite(pic_path, frame)
+                except Exception as e:
+                    print(f"{path_name_list[position_index]}读取出现错误：{e}")
+                    return False
             else:
                 ret = app_model.video_server.save_frame(self.direction_list[position_index], pic_path, False)
                 if ret != 0:
@@ -305,10 +309,9 @@ class InternalCalibrationController(BaseControllerTab):
     def upload_file(self, device_ip, upload_file, upload_path="/mnt/usr/kvdb/usr_data_kvdb/inter_cfg",
                     check_mode=-1):
 
-        self.one_click_thread_event.set()
-        self.one_click_thread = True
-        return True
-
+        # self.one_click_thread_event.set()
+        # self.one_click_thread = True
+        # return True
         ret = False
         if not device_ip:
             self.show_message_signal.emit(False, "数据上传:设备IP异常")
@@ -329,7 +332,7 @@ class InternalCalibrationController(BaseControllerTab):
                 self.work_thread_state = False
                 self.show_message_signal.emit(True, "外参标定完成")
                 ret = True
-            server.logout()
+            # server.logout()
         else:
             self.show_message_signal.emit(False, "数据上传失败")
             server.logout()
@@ -373,10 +376,12 @@ class InternalCalibrationController(BaseControllerTab):
                 "img_point_list"], chessboard["frame_size"], chessboard["camera_type"]
 
             data = self.camera_cali.calib_in(obj_point_list, img_point_list, frame_size, camera_type)
-            if data.camera_mat is None or data.dist_coeff is None or data.reproj_err is None:
+            if data.camera_mat is None or data.dist_coeff is None:
                 return False, f"{dirct} NoBoeardError"
             elif data.reproj_err >= precision:
                 return False, f"{dirct} ReProjectionError: {data.reproj_err}"
+            elif not data.ok:
+                return False, f"{dirct} cacle abnormal abnormal"
             print(f"{dirct} Intrinsic Calibration Ok\n")
             self.show_message_signal.emit(True, f"{dirct} 内参标定成功")
 
@@ -454,7 +459,7 @@ class InternalCalibrationController(BaseControllerTab):
 
         dirct_list = [["L", "R"], ["L", "ML"], ["R", "MR"]]
         prefix_list = ["", "left_", "right_"]
-        rotate_list = [2, 1, 3]
+        rotate_list = [m_global.board_rotate_fish, m_global.board_rotate_left, m_global.board_rotate_right]
 
         cfg_params = None
         with open(internal_path, 'r') as file:
@@ -501,7 +506,7 @@ class InternalCalibrationController(BaseControllerTab):
                 distance_count += 1
             distance /= distance_count
             print(f"拼接参数误差 : {distance}")
-            if distance > 0.01:
+            if distance > m_global.stitch_distance:  # 0.015
                 self.show_message_signal.emit(False, "拼接标定误差较大")
                 print("拼接标定误差较大")
                 self.ex_cali_finish(False, cfg_params)
@@ -511,7 +516,12 @@ class InternalCalibrationController(BaseControllerTab):
                 M, mask = cv2.findHomography(np.array(prespec_point_1), np.array(prespec_point_2), cv2.RANSAC)
                 cfg_params[prefix + 'M'] = M.flatten().tolist()
 
-                self.prespec_test(dirct_1, dirct_2, M)
+                distance = self.prespec_test(dirct_1, dirct_2, M)
+                if distance > m_global.reproj_distance:  # 0.015
+                    self.show_message_signal.emit(False, "透视矩阵标定误差较大")
+                    print("透视矩阵标定误差较大")
+                    self.ex_cali_finish(False, cfg_params)
+                    return
 
         self.ex_cali_finish(True, cfg_params)
 
@@ -559,75 +569,14 @@ class InternalCalibrationController(BaseControllerTab):
             distance += np.sqrt(np.sum((point_dict_1[common_key] - point_dict_2[common_key]) ** 2))
             distance_count += 1
 
-            cv2.circle(canvas, (int(point_dict_1[common_key][0][0]), int(point_dict_1[common_key][0][1])), 5, (0, 0, 255), -1)
-            cv2.circle(canvas, (int(point_dict_2[common_key][0][0]), int(point_dict_2[common_key][0][1])), 5, (0, 255, 0), -1)
+            cv2.circle(canvas, (int(point_dict_1[common_key][0][0]), int(point_dict_1[common_key][0][1])), 5,
+                       (0, 0, 255), -1)
+            cv2.circle(canvas, (int(point_dict_2[common_key][0][0]), int(point_dict_2[common_key][0][1])), 5,
+                       (0, 255, 0), -1)
 
         distance /= distance_count
         print(f"透视变化误差 : {distance}")
-
-        # # 将每个点画在画布上
-        # for point_list in img_point_list_1:
-        #     for point in point_list:
-        #         x, y = point[0]
-        #         if x > 0 and y > 0:
-        #             cv2.circle(canvas, (int(x), int(y)), 5, (255, 0, 0), -1)
-        # for point_list in img_point_list_2:
-        #     for point in point_list:
-        #         x, y = point[0]
-        #         if x > 0 and y > 0:
-        #             cv2.circle(canvas, (int(x), int(y)), 5, (0, 255, 0), -1)
-
-        # path_1 = os.path.join("m_data/hqtest/611", dirct_1, "chessboard_" + dirct_1 + ".jpg")
-        # img_1 = cv2.imread(path_1)
-        # new_size = (img_1.shape[1], img_1.shape[0])
-        # 畸变校正
-        # new_camera_matrix_2 = np.multiply(mtx_1, [[0.6, 1, 1], [1, 0.6, 1], [1, 1, 1]])
-        # mapx, mapy = cv2.fisheye.initUndistortRectifyMap(mtx_1, dist_1, np.eye(3), new_camera_matrix_2, new_size,
-        #                                                  cv2.CV_32FC1)
-        # undistorted_img_1 = cv2.remap(img_1, mapx, mapy, cv2.INTER_LINEAR)
-        #
-        # calib_param = self.calib_parameter[self.dirct_trans[dirct_2] + "_calib"]
-        # mtx_2 = np.array(calib_param[2:11]).reshape(3, 3)
-        # dist_2 = np.array(calib_param[11:])
-        # path_2 = os.path.join("m_data/hqtest/611", dirct_2, "chessboard_" + dirct_2 + ".jpg")
-        # img_2 = cv2.imread(path_2)
-        # new_size = (img_2.shape[1], img_2.shape[0])
-        # # 畸变校正
-        # new_camera_matrix_2 = np.multiply(mtx_2, [[0.8, 1, 1], [1, 0.8, 1], [1, 1, 1]])
-        # mapx, mapy = cv2.initUndistortRectifyMap(mtx_2, dist_2, np.eye(3), new_camera_matrix_2, new_size,
-        #                                          cv2.CV_32FC1)
-        # undistorted_img_2 = cv2.remap(img_2, mapx, mapy, cv2.INTER_LINEAR)
-        #
-        # warped_image = cv2.warpPerspective(undistorted_img_1, M,
-        #                                    (int(undistorted_img_2.shape[1]), int(undistorted_img_2.shape[0])))
-
-        # undistorted_img_1 = cv2.resize(undistorted_img_1, (600, 400))
-        # cv2.imshow("undistorted_img_1", undistorted_img_1)
-        # undistorted_img_2 = cv2.resize(undistorted_img_2, (600, 400))
-        # cv2.imshow("undistorted_img_2", undistorted_img_2)
-        # warped_image = cv2.resize(warped_image, (600, 400))
-        # cv2.imshow("warped_image", warped_image)
-        #
-        # # # 将图像转换为浮点数类型以避免溢出
-        # img1_float = warped_image.astype(np.float32)
-        # img2_float = undistorted_img_2.astype(np.float32)
-        #
-        # add_image = img1_float + img2_float
-        # non_black_mask = np.all(warped_image > 0, axis=-1) & np.all(undistorted_img_2 > 0, axis=-1)
-        # add_image[non_black_mask] = add_image[non_black_mask] // 2
-        # add_image = np.clip(add_image, 0, 255).astype(np.uint8)
-        # add_image = cv2.resize(add_image, (600, 400))
-        # cv2.imshow("add_image", add_image)
-
-        # non_black_mask = np.all(warped_image > 0, axis=-1)
-        # undistorted_img_2[non_black_mask] = (0, 0, 0)
-        # add_image = warped_image + undistorted_img_2
-        # add_image = cv2.resize(add_image, (600, 400))
-        # cv2.imshow("add_image", add_image)
-        #
-        # canvas = cv2.resize(canvas, (500, 300))
-        # cv2.imshow("canvas", canvas)
-        # cv2.waitKey(0)
+        return distance
 
     def cali_ex_one_camera(self, dirct, common_board, camera_type, rotate):
         dirct_1_key_list = list(self.chessboard[dirct]["id_dict"].keys())
@@ -671,253 +620,6 @@ class InternalCalibrationController(BaseControllerTab):
 
         self.view.set_start_button_enable(True)
         return state
-
-    # def cali_ex_two_camera(self):
-
-    # 开始标定外参
-    def cali_ex_1(self, internal_path=None):
-        # 创建目录
-        sn = app_model.device_model.sn
-        if not sn:
-            self.log.log_err("sn获取失败")
-            self.show_message_signal.emit(False, "sn获取失败")
-            self.view.set_start_button_enable(True)
-            return
-
-        external_data_path = os.path.join(app_model.work_path_external, sn)
-        if not os.path.exists(external_data_path):
-            os.makedirs(external_data_path)
-        self.external_data_path = external_data_path
-
-        if not self.external_data_path:
-            self.view.set_start_button_enable(True)
-            self.show_message_signal.emit(False, "外参保存路径创建失败")
-            return
-
-        if internal_path is not None:
-            for key, values in {'L': ['L', "L_L"], 'ML': ["ML_L"], 'MR': ["MR_R"], 'R': ['R', "R_R"]}.items():
-                for value in values:
-                    source_file = f"{internal_path}\\{key}\\chessboard_{key}.jpg"
-                    target_file = f"{self.external_data_path}\\chessboard_{value}.jpg"
-                    shutil.copy(source_file, target_file)
-                    print(f"Successfully copied {source_file} to {target_file}")
-
-        # self.work_thread_state = True
-        # # 创建线程执行任务
-        # self.work_thread = threading.Thread(target=self.get_ex_stitch, daemon=True)
-        # self.work_thread.start()
-        self.get_ex_stitch()
-
-    def get_ex_stitch(self):
-        ex_calib_ok, cfg_params = self.ex_cacle()
-        if not ex_calib_ok:
-            self.show_message_signal.emit(False, "外参标定失败...")
-        else:
-            # 保存文件
-            try:
-                result_json = json.dumps(cfg_params, indent=4)
-                print("JSON serialization successful.")
-            except Exception as e:
-                print(f"An error occurred during JSON serialization: {e}")
-
-            self.save_external_file(result_json)
-            self.show_message_signal.emit(True, "参数保存本地成功")
-            print("save_external_file success")
-
-            # 上传文件
-            self.show_message_signal.emit(True, "上传拼接结果")
-            filename = "external_cfg.json"
-            result = self.upload_file(app_model.device_model.ip, os.path.join(self.external_data_path, filename),
-                                      f"/mnt/usr/kvdb/usr_data_kvdb/{filename}")
-            if not result:
-                self.show_message_signal.emit(False, "上传拼接文件失败")
-                server.logout()
-            else:
-                self.show_message_signal.emit(True, "上传拼接文件成功")
-                self.show_message_signal.emit(True, "标定完成")
-
-        self.view.set_start_button_enable(True)
-        return ex_calib_ok
-
-    # 进行外参计算
-    def ex_cacle(self):
-        self.show_message_signal.emit(True, "开始计算相机外参")
-        cfg_params = None
-        ret = False
-        img_name_1, img_name_2 = "L", "R"
-        img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
-        img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
-        ret, cfg_params = self.calib_ex(img_ex_1, img_ex_2,
-                                        save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
-                                        save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
-                                        cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
-
-        img_name_1, img_name_2 = "L_L", "ML_L"
-        img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
-        img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
-        ret, cfg_params = self.calib_ex(img_ex_1, img_ex_2, "left",
-                                        save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
-                                        save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
-                                        cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
-
-        img_name_1, img_name_2 = "R_R", "MR_R"
-        img_ex_1 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_1}.jpg")
-        img_ex_2 = cv2.imread(f"{self.external_data_path}\\chessboard_{img_name_2}.jpg")
-        ret, cfg_params = self.calib_ex(img_ex_1, img_ex_2, "right",
-                                        save_path_1=f"{self.external_data_path}\\camera{img_name_1}.jpg",
-                                        save_path_2=f"{self.external_data_path}\\camera{img_name_2}.jpg",
-                                        cfg_params=cfg_params, aruco_flag=m_global.aruco_flag)
-
-        return ret, cfg_params
-
-    def calib_ex(self, img_0, img_1, mode="", save_path_1=None, save_path_2=None, cfg_params=None, aruco_flag=True):
-        check = True
-        if cfg_params is None:
-            with open(app_model.config_ex_internal_path, 'r') as file:
-                cfg_params = json.load(file)
-        ex_calib.set_intrinsic_params(cfg_params)
-        ret = True
-        if aruco_flag:
-            dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "right", False, True, m_global.board_id_fish, ""  # 双鱼眼标定模式
-            if mode == "left":  # 左边鱼眼+普通标定模式
-                dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "left", "mid_left", False, False, m_global.board_id_left, "left_"  # 左边鱼眼+普通标定模式
-            elif mode == "right":  # 右边鱼眼+普通标定模式
-                dirct_1, dirct_2, rotate_1, rotate_2, board_id, prefix = "right", "mid_right", True, True, m_global.board_id_right, "right_"  # 右边鱼眼+普通标定模式
-
-            ex_calib.show_img = np.zeros((3000, 2960, 3))
-
-            ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate_aruco(dirct_1, img_0, dic_size=5, dic_num=1000,
-                                                                           board_width=m_global.bW,
-                                                                           board_height=m_global.bH,
-                                                                           board_spacer=m_global.bSpacer,
-                                                                           board_id=board_id,
-                                                                           square_size=m_global.bSize,
-                                                                           board_num=m_global.bNum,
-                                                                           save_path=save_path_1,
-                                                                           check_mode=True,
-                                                                           rotate=rotate_1)
-            src_point_dict_1 = ex_calib.perspec_point
-            undistorted_img_1 = ex_calib.undistorted_img
-
-            if not ret:
-                self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
-                print(f"{prefix}{dirct_1} ex calib filed")
-                return ret, cfg_params
-            print(f"rvecs_1:\n{rvecs_1}")
-            print(f"tvecs_1:\n{tvecs_1}")
-            print(f"{prefix}{dirct_1} ex calib ok")
-
-            ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate_aruco(dirct_2, img_1, dic_size=5, dic_num=1000,
-                                                                           board_width=m_global.bW,
-                                                                           board_height=m_global.bH,
-                                                                           board_spacer=m_global.bSpacer,
-                                                                           board_id=board_id,
-                                                                           square_size=m_global.bSize,
-                                                                           board_num=m_global.bNum,
-                                                                           save_path=save_path_2,
-                                                                           check_mode=True,
-                                                                           rotate=rotate_2)
-            src_point_dict_2 = ex_calib.perspec_point
-            undistorted_img_2 = ex_calib.undistorted_img
-
-            if not ret:
-                self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
-                print(f"{prefix}{dirct_2} ex calib failed")
-                return ret, cfg_params
-            print(f"{prefix}{dirct_2} ex calib ok")
-        else:
-            dirct_1, dirct_2, prefix = "left", "right", ""  # 双鱼眼标定模式
-            if mode == "left":  # 左边鱼眼+普通标定模式
-                dirct_1, dirct_2, prefix = "left", "mid_left", "left_"  # 左边鱼眼+普通标定模式
-            elif mode == "right":  # 右边鱼眼+普通标定模式
-                dirct_1, dirct_2, prefix = "right", "mid_right", "right_"  # 右边鱼眼+普通标定模式
-            ret, rvecs_1, tvecs_1, point_dict_1 = ex_calib.calibrate(dirct_1, img_0, board_width=m_global.bW,
-                                                                     board_height=m_global.bH,
-                                                                     square_size=m_global.bSize, save_path=save_path_1,
-                                                                     check_mode=True)
-            if not ret:
-                self.show_message_signal.emit(False, f"{prefix}{dirct_1} 外参标定失败")
-                print(f"{prefix}{dirct_1} ex calib filed")
-                return ret, cfg_params
-            print(f"{prefix}{dirct_1} ex calib ok")
-
-            ret, rvecs_2, tvecs_2, point_dict_2 = ex_calib.calibrate(dirct_2, img_1, board_width=m_global.bW,
-                                                                     board_height=m_global.bH,
-                                                                     square_size=m_global.bSize, save_path=save_path_2,
-                                                                     check_mode=True)
-
-            if not ret:
-                self.show_message_signal.emit(False, f"{prefix}{dirct_2} 外参标定失败")
-                print(f"{prefix}{dirct_2} ex calib failed")
-                return ret, cfg_params
-            print(f"{prefix}{dirct_1} ex calib ok")
-
-        common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
-        # 输出具有相同键的元素
-        distance = 0.0
-        distance_count = 0
-        prespec_point_1, prespec_point_2 = [], []
-        for key in common_keys:
-            distance += np.sqrt(np.sum((point_dict_1[key] - point_dict_2[key]) ** 2))
-            distance_count += 1
-            prespec_point_1.append(src_point_dict_1[key])
-            prespec_point_2.append(src_point_dict_2[key])
-
-        src_point_dict_all = np.array(list(src_point_dict_1.values()))
-
-        distance /= distance_count
-        print(f"distance : {distance}\n")
-        if distance > 0.01:
-            self.show_message_signal.emit(False, "拼接标定误差较大")
-            print("拼接标定误差较大")
-            ret = False
-
-        cfg_params[prefix + 'rvecs_1'] = rvecs_1.flatten().tolist()
-        cfg_params[prefix + 'tvecs_1'] = tvecs_1.flatten().tolist()
-        cfg_params[prefix + 'rvecs_2'] = rvecs_2.flatten().tolist()
-        cfg_params[prefix + 'tvecs_2'] = tvecs_2.flatten().tolist()
-
-        M, mask = cv2.findHomography(np.array(prespec_point_1), np.array(prespec_point_2), cv2.RANSAC)
-        cfg_params[prefix + 'M'] = M.flatten().tolist()
-
-        # chessboard_2 = self.chessboard[self.dirct_trans[dirct_2]]
-
-        # show
-        ok, obj_point_list_1, img_point_list_1, id_dict_1 = self.get_aruco_corners(undistorted_img_1)
-        ok, obj_point_list_2, img_point_list_2, id_dict_2 = self.get_aruco_corners(undistorted_img_2)
-        for i in range(len(obj_point_list_1)):
-            point_list = img_point_list_1[i]
-            for point in point_list:
-                cv2.circle(undistorted_img_1, (int(point[0][0]), int(point[0][1])), 5, (0, 255, 0), -1)
-
-        warped_image = cv2.warpPerspective(undistorted_img_1, M,
-                                           (int(undistorted_img_2.shape[1]), int(undistorted_img_2.shape[0])))
-        ok, obj_point_list_warped, img_point_list_warped, id_dict_warped = self.get_aruco_corners(warped_image)
-        for i in range(len(obj_point_list_2)):
-            point_list = img_point_list_2[i]
-            for point in point_list:
-                cv2.circle(undistorted_img_2, (int(point[0][0]), int(point[0][1])), 5, (0, 0, 255), -1)
-        for i in range(len(img_point_list_warped)):
-            point_list = img_point_list_warped[i]
-            for point in point_list:
-                cv2.circle(undistorted_img_2, (int(point[0][0]), int(point[0][1])), 5, (0, 255, 0), -1)
-
-        warped_image = cv2.resize(warped_image, (600, 400))
-
-        # for i in range(len(prespec_point_2)):
-        #     points = prespec_point_2[i]
-        #     cv2.circle(undistorted_img_2, (int(points[0]), int(points[1])), 2, (255, 0, 0), -1)
-
-        # common_keys = set(point_dict_1.keys()) & set(point_dict_2.keys())
-
-        undistorted_img_2 = cv2.resize(undistorted_img_2, (600, 400))
-        undistorted_img_1 = cv2.resize(undistorted_img_1, (600, 400))
-        cv2.imshow('warped_image', warped_image)
-        cv2.imshow('undistorted_img_1', undistorted_img_1)
-        cv2.imshow('undistorted_img_2', undistorted_img_2)
-        cv2.waitKey(0)
-
-        return ret, cfg_params
 
     # 相机位置切换槽函数
     def position_play(self):
@@ -984,7 +686,7 @@ class InternalCalibrationController(BaseControllerTab):
         self.screenshot_lable_ok = []
         self.show_message_signal.emit(True, "内参计算完成")
         # time.sleep(0.2)
-        self.internal_data = result
+        app_model.video_server.internal_data = json.loads(result)
         # self.view.set_internal_result(result)
 
         device_ip = app_model.device_model.ip

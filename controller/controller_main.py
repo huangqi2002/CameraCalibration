@@ -131,16 +131,26 @@ class MainController(BaseController):
         app_model.video_server = VideoServer()
 
     def init_parameter(self):
+        m_global.connect_timeout = app_model.config_fg.get("connect_timeout")
         m_global.m_connect_local = app_model.config_fg.get("m_connect_local")
         m_global.m_global_debug = app_model.config_fg.get("m_global_debug")
         m_global.bW = app_model.config_fg.get("bW")
         m_global.bH = app_model.config_fg.get("bH")
+        m_global.similar_threshold = app_model.config_fg.get("similar_threshold")
+        m_global.stitch_distance = app_model.config_fg.get("stitch_distance")
+        m_global.reproj_distance = app_model.config_fg.get("reproj_distance")
         m_global.dicSize = app_model.config_fg.get("dicSize")
         m_global.bSize = app_model.config_fg.get("bSize")
         m_global.bSpacer = app_model.config_fg.get("bSpacer")
         m_global.bNum = app_model.config_fg.get("bNum")
+
         m_global.board_id_fish = app_model.config_fg.get("board_id_fish")
+        m_global.board_rotate_fish = app_model.config_fg.get("board_rotate_fish")
+        m_global.board_id_fish = app_model.config_fg.get("board_id_fish")
+        m_global.board_rotate_fish = app_model.config_fg.get("board_rotate_fish")
         m_global.board_id_left = app_model.config_fg.get("board_id_left")
+        m_global.board_rotate_left = app_model.config_fg.get("board_rotate_left")
+
         m_global.board_id_right = app_model.config_fg.get("board_id_right")
         m_global.inter_calib_precision = app_model.config_fg.get("inter_calib_precision")
         m_global.aruco_flag = app_model.config_fg.get("aruco_flag")

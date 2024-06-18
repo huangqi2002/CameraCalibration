@@ -55,7 +55,7 @@ class Ui_TabVideoResult(object):
         self.label_img_1.setAlignment(QtCore.Qt.AlignCenter)
         self.label_img_1.setObjectName("label_img_1")
         self.horizontalLayout_2.addWidget(self.label_img_1)
-        self.label_img_2 = QtWidgets.QLabel(self.widget)
+        self.label_img_2 = ScreenClickableLabel(self.widget)
         self.label_img_2.setMinimumSize(QtCore.QSize(72, 48))
         self.label_img_2.setFrameShape(QtWidgets.QFrame.Box)
         self.label_img_2.setAlignment(QtCore.Qt.AlignCenter)
@@ -68,7 +68,7 @@ class Ui_TabVideoResult(object):
         self.horizontalLayout_2.addWidget(self.pushButton_begin)
         spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout_2.addItem(spacerItem1)
-        self.label_img_3 = QtWidgets.QLabel(self.widget)
+        self.label_img_3 = ScreenClickableLabel(self.widget)
         self.label_img_3.setMinimumSize(QtCore.QSize(72, 48))
         self.label_img_3.setFrameShape(QtWidgets.QFrame.Box)
         self.label_img_3.setAlignment(QtCore.Qt.AlignCenter)
@@ -105,3 +105,4 @@ class Ui_TabVideoResult(object):
         self.label_img_3.setText(_translate("TabVideoResult", "图像3"))
         self.label_img_4.setText(_translate("TabVideoResult", "图像4"))
 from ui.ClickableLabel import ClickableLabel
+from ui.ScreenClickableLabel import ScreenClickableLabel

@@ -93,18 +93,20 @@ class CommonBarController(BaseController):
             self.login_now = 1
             return
         self.login_now = 2
-        threading.Thread(target=self.device_login, args=(connect_type, 5), daemon=True).start()
+        threading.Thread(target=self.device_login, args=(connect_type, m_global.connect_timeout), daemon=True).start()
         # self.signal_state_device.emit(1, "login success")
 
     # 登录设备
     def device_login(self, connect_type, timeout=50):
+        self.view.set_connect_device_btn_text("停止登录")
         # 设备登陆获取设备信息(并设置为工厂模式，设置工厂模式后设备会重启)
         for time_index in range(app_model.login_retry_max_count):
             self.show_message_signal.emit(True, f"设备登录中...{time_index}")
             if not server.login(app_model.device_model.ip, timeout=timeout):
-                if self.login_now == 1:
+                if self.login_now == 1 or time_index == app_model.login_retry_max_count - 1:
                     self.show_message_signal.emit(False, f"设备登录失败")
                     self.login_now = 0
+                    self.view.set_connect_device_btn_text("连接设备")
                     return
                 time.sleep(1)
                 continue
@@ -112,11 +114,13 @@ class CommonBarController(BaseController):
             if not device_info:
                 self.show_message_signal.emit(False, "获取设备信息失败")
                 self.login_now = 0
+                self.view.set_connect_device_btn_text("连接设备")
                 return
             body = device_info.get("body")
             if not body:
                 self.show_message_signal.emit(False, "获取设备信息失败:body")
                 self.login_now = 0
+                self.view.set_connect_device_btn_text("连接设备")
                 return
             app_model.device_model.sn = body.get("serial_num")
             app_model.device_model.board_version = body.get("board_version")

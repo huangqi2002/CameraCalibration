@@ -16,7 +16,7 @@ from server.internal.internal_server import create_internal
 import img2pdf
 
 
-rtsp_url = "rtsp://192.168.109.90:8557"
+rtsp_url = "rtsp://192.168.109.190:8557"
 rtsp_url_0 = rtsp_url + "/left_main_1_0"
 rtsp_url_1 = rtsp_url + "/out_left_sub_3_1"
 rtsp_url_2 = rtsp_url + "/out_right_sub_4_1"
@@ -139,7 +139,7 @@ def play_test():
     # thread_state = True
     # read_frame = None
     # read_frame_state = False
-    input_para = {"rtsp_url": rtsp_url_1, "read_frame_state": False, "read_frame": None,
+    input_para = {"rtsp_url": rtsp_url_0, "read_frame_state": False, "read_frame": None,
                   "thread_state": True, "pause_lock": threading.Lock(), "pause_state": False}
     rtsp_thread = threading.Thread(target=read_rtsp_stream, args=(input_para,))
     rtsp_thread.start()
@@ -169,9 +169,9 @@ def play_test():
         wait_count = 0
         img = input_para["read_frame"].copy()
         # img = cv2.imread("../m_data/aruco/bf/in/L/chessboard_1714387592.jpg")
-        img = cv2.imread(f"../charuco/charuco_board_{i}.jpg")
+        # img = cv2.imread(f"../charuco/charuco_board_{i}.jpg")
         i += 1
-        # img = cv2.imread("../m_data/hqtest/in_MR.jpg")
+        img = cv2.imread("../m_data/hqtest/in_L.jpg")
         objPoints, imgPoints, charucoIds, img = aruco_tool.charuco_detect(img, True)
         cv2.imwrite("aruco_test.jpg", img)
         # img = cv2.resize(img, (900, 600))

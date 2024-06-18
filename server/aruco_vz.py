@@ -123,8 +123,8 @@ class aruco_vz():
             # if charucoCorners.shape[0] >= 10:
             if paint:
                 # self.draw_charuco_corners(ret_img, charucoCorners)
-                # cv2.aruco.drawDetectedCornersCharuco(ret_img, charucoCorners, charucoIds, cornerColor=(0, 255, 0))
-                cv2.aruco.drawDetectedMarkers(ret_img, markerCorners, markerIds, borderColor=(255, 0, 0))
+                cv2.aruco.drawDetectedCornersCharuco(ret_img, charucoCorners, charucoIds, cornerColor=(0, 255, 0))
+                # cv2.aruco.drawDetectedMarkers(ret_img, markerCorners, markerIds, borderColor=(255, 0, 0))
                 print(f"min : {markerIds.min()}   max : {markerIds.max()}   len : {markerIds.max() - markerIds.min() + 1}")
         # print(len(charucoCorners))
 

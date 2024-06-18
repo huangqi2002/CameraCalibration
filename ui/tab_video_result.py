@@ -12,6 +12,12 @@ class TabVideoResult(BaseView, Ui_TabVideoResult):
         self.setupUi(self)
         # 防止界面大小不可调节
         self.label_video_result.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.label_img_1.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.label_img_2.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.label_img_3.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.label_img_4.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+
+
 
     def set_video_result(self, video_data):
         self.label_video_result.setPixmap(video_data)

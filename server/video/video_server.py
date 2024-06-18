@@ -69,9 +69,11 @@ class VideoServer(QObject):
         ex_internal_data_path = app_model.config_ex_internal_path
         if ex_internal_data_path is None:
             ex_internal_data_path = os.path.join(os.getcwd(), "configs\\internal\\external_cfg.json")
-        with open(ex_internal_data_path, 'r') as file:
-            cfg_params = file.read()
-        self.fisheye_init(cfg_params)
+        if os.path.exists(ex_internal_data_path):
+            with open(ex_internal_data_path, 'r') as file:
+                cfg_params = file.read()
+                # self.internal_data = json.loads(cfg_params)
+            self.fisheye_init(cfg_params)
         # print(ex_internal_data_path)
         # ex_internal_data_path = ex_internal_data_path.encode(encoding="utf-8", errors="ignore")
         # self.fisheye_internal_init(ex_internal_data_path)
@@ -129,10 +131,13 @@ class VideoServer(QObject):
     #     app_model.config_ex_internal_path = path
 
     def fisheye_init(self, cfg):
-        self.fisheye_dll.fisheye_init.argtypes = [ctypes.c_char_p,
-                                                  ctypes.c_int,
-                                                  ctypes.c_int]
-        self.fisheye_dll.fisheye_init(cfg.encode('utf-8'), 2000, 1000)
+        try:
+            self.fisheye_dll.fisheye_init.argtypes = [ctypes.c_char_p,
+                                                      ctypes.c_int,
+                                                      ctypes.c_int]
+            self.fisheye_dll.fisheye_init(cfg.encode('utf-8'), 2000, 1000)
+        except Exception as e:
+            print(f"鱼眼dll初始化时出错：{e}")
 
     def four_img_stitch(self, frame_1, frame_2, frame_3, frame_4):
         if frame_1 is None or frame_2 is None or frame_3 is None or frame_4 is None:
@@ -145,12 +150,12 @@ class VideoServer(QObject):
         # cv2.imshow("3", cv2.resize(frame_3, (400, 300)))
         # cv2.imshow("4", cv2.resize(frame_4, (400, 300)))
         # cv2.waitKey(0)
-
+        #
         # if m_global.m_connect_local:
-        #     frame_1 = cv2.imread("m_data/hqtest/in_L.jpg")
-        #     frame_2 = cv2.imread("m_data/hqtest/in_R.jpg")
-        #     frame_3 = cv2.imread("m_data/hqtest/in_ML.jpg")
-        #     frame_4 = cv2.imread("m_data/hqtest/in_MR.jpg")
+        #     frame_1 = cv2.imread("m_data/hqtest/chessboard_L0.jpg")
+        #     frame_2 = cv2.imread("m_data/hqtest/chessboard_R0.jpg")
+        #     frame_3 = cv2.imread("m_data/hqtest/chessboard_ML0.jpg")
+        #     frame_4 = cv2.imread("m_data/hqtest/chessboard_MR0.jpg")
 
         height = 1000
         width = 2000
@@ -159,11 +164,19 @@ class VideoServer(QObject):
 
         stitch_image = np.zeros(dtype=np.uint8, shape=(height, width, 3))
 
-        self.fisheye_dll.run_mat_four_image(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                            , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                            , frame_3.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                            , frame_4.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                            , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
+        # frame_1 = self.black_edge(frame_1)
+        # frame_2 = self.black_edge(frame_2)
+        # frame_3 = self.black_edge(frame_3)
+        # frame_4 = self.black_edge(frame_4)
+        try:
+            self.fisheye_dll.run_mat_four_image(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                , frame_3.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                , frame_4.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
+        except Exception as e:
+            print(f"鱼眼dll拼接时出错：{e}")
+            stitch_image = None
         # if m_global.m_global_debug:
         #     if int(time.time()) % 3 == 0:
         #         cv2.imwrite('output_image.jpg', stitch_image)
@@ -173,6 +186,13 @@ class VideoServer(QObject):
         # stitch_image = self.stitch_crop(stitch_image)
 
         return stitch_image
+
+    def black_edge(self, img):
+        img[:2, :] = 0  # 将前两行设为黑色
+        img[-2:, :] = 0  # 将最后两行设为黑色
+        img[:, :2] = 0  # 将前两列设为黑色
+        img[:, -2:] = 0  # 将最后两列设为黑色
+        return img
 
     def create(self, cameras: dict):
         # self.stop_get_frame()
@@ -394,8 +414,9 @@ class VideoServer(QObject):
         # direct_dict = {"left": "L", "right": "R", "mid_left": "ML", "mid_right": "MR"}
         # frame = cv2.imread("m_data/hqtest/bf_1/in_" + direct_dict[direction_str] + ".jpg")
         if direction_str not in self.mapx:
-
             camera_inter = self.internal_data.get(direction_str + "_calib")
+            if camera_inter is None:
+                return frame
             # 内参和畸变参数
             intrinsics = camera_inter[2:11]
             dist_coeffs = np.array(camera_inter[11:])
@@ -508,12 +529,18 @@ class VideoServer(QObject):
                 self.cameras[direction_list[2]].frame_is_ok = False
                 self.cameras[direction_list[3]].frame_is_ok = False
 
+                if frame is None:
+                    continue
+
                 # 将读取到的frame写入相机中
+                # print("get_frame_stitch_0")
                 if not camera.frame_is_ok:
-                    camera.frame = frame.copy()
-                    # print(f"camera.frame is {camera.frame is None}")
-                    camera.frame_is_ok = True
-                    self.four_img_flag[direction] = 1
+                    if not camera.frame_is_ok:
+                        # print("get_frame_stitch_1")
+                        camera.frame = frame.copy()
+                        # print(f"camera.frame is {camera.frame is None}")
+                        # cv2.imwrite("./stitch.jpg", camera.frame)
+                        camera.frame_is_ok = True
 
                 time.sleep(0.11)
 
@@ -626,12 +653,13 @@ class VideoServer(QObject):
                 self.cameras[direction_list[3]].frame_is_ok = False
 
                 # 将读取到的frame写入相机中
+                # print(f"get_frame_all_0 {camera.frame_is_ok}")
                 if not camera.frame_is_ok:
+                    # print("get_frame_all_1")
                     camera.frame = frame.copy()
                     # print(f"{camera}camera.frame is {camera.frame is None}")
                     camera.frame_is_ok = True
                     camera.clarity_dict = clarity_dict
-                    self.four_img_flag[direction] = 1
 
                 time.sleep(0.11)
 

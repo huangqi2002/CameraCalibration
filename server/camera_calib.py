@@ -74,15 +74,29 @@ class Camera_Cali:
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.fisheye.calibrate(
             obj_train, img_train, frame_size, data.camera_mat, data.dist_coeff,
             flags=cv2.fisheye.CALIB_FIX_SKEW | cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC | cv2.CALIB_USE_INTRINSIC_GUESS,
-            criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 100, 1e-6))
+            criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 1000, 1e-6))
 
+        # 计算重投影误差
+        if data.ok:
+            reproj_err = []
+
+            for i in range(len(img_point_list)):
+                corners_reproj, _ = cv2.fisheye.projectPoints(obj_test[i], data.rvecs[i], data.tvecs[i],
+                                                              data.camera_mat,
+                                                              data.dist_coeff)
+                err = cv2.norm(corners_reproj, img_test[i], cv2.NORM_L2) / len(corners_reproj)
+                reproj_err.append(err)
+
+            data.reproj_err = np.mean(reproj_err)
+
+        # 判断数据有效性
         if data.ok and cv2.checkRange(data.camera_mat) and cv2.checkRange(data.dist_coeff):
             # 确保两个矩阵具有相同的形状
             assert data.camera_mat.shape == self.init_camera_mat.shape, "矩阵形状不匹配"
             # 计算两个矩阵每个元素的差的绝对值
             abs_diff = np.abs(data.camera_mat - self.init_camera_mat)
             # 计算init矩阵对应位置的阈值
-            threshold = 0.15 * np.abs(self.init_camera_mat)
+            threshold = m_global.similar_threshold * np.abs(self.init_camera_mat)
             # 检查是否小于阈值
             below_threshold_1 = abs_diff <= threshold
 
@@ -97,23 +111,9 @@ class Camera_Cali:
             if not np.all(below_threshold_1) or not np.all(below_threshold_2):
                 data.ok = False
 
-        # 数据有效，计算重投影误差
-        if data.ok:
-            reproj_err = []
-
-            for i in range(len(img_point_list)):
-                corners_reproj, _ = cv2.fisheye.projectPoints(obj_test[i], data.rvecs[i], data.tvecs[i],
-                                                              data.camera_mat,
-                                                              data.dist_coeff)
-                err = cv2.norm(corners_reproj, img_test[i], cv2.NORM_L2) / len(corners_reproj)
-                reproj_err.append(err)
-
-            data.reproj_err = np.mean(reproj_err)
-
-        if data is not None and data.ok:
-            print("Camera Matrix is : {}".format(data.camera_mat.tolist()))
-            print("Distortion Coefficient is : {}".format(data.dist_coeff.tolist()))
-            print("Reprojection Error is : {}".format(data.reproj_err))
+        print("Camera Matrix is : {}".format(data.camera_mat.tolist()))
+        print("Distortion Coefficient is : {}".format(data.dist_coeff.tolist()))
+        print("Reprojection Error is : {}".format(data.reproj_err))
 
         return data
 
@@ -126,20 +126,42 @@ class Camera_Cali:
         # 使用train_test_split划分训练集和测试集
         obj_train, obj_test, img_train, img_test = split_points(obj_point_list, img_point_list, test_size=0.1,
                                                                 random_state=42)
+        # obj_train, obj_test, img_train, img_test = obj_point_list, obj_point_list, img_point_list, img_point_list
 
         data.camera_mat, data.dist_coeff = self.init_camera_mat_normal.copy(), self.init_dist_coeff_normal.copy()
+
+        # show_img = cv2.imread("m_data/hqtest/in_MR.jpg")
+        # for point_list in img_train:
+        #     for point in point_list:
+        #         cv2.circle(show_img, (int(point[0][0]), int(point[0][1])), 5, (255, 0, 0), -1)
+        # cv2.imwrite("m_data/hqtest/in_MR_show.jpg", show_img)
+
         data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.calibrateCamera(
             obj_train, img_train, frame_size, data.camera_mat, data.dist_coeff,
             flags=cv2.CALIB_USE_INTRINSIC_GUESS,
-            criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 100, 1e-6))
+            criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 1000, 1e-6))
 
+        # 计算重投影误差
+        if data.ok:
+            reproj_err = []
+
+            for i in range(len(img_point_list)):
+                corners_reproj, _ = cv2.projectPoints(obj_test[i], data.rvecs[i], data.tvecs[i],
+                                                      data.camera_mat,
+                                                      data.dist_coeff)
+                err = cv2.norm(corners_reproj, img_test[i], cv2.NORM_L2) / len(corners_reproj)
+                reproj_err.append(err)
+
+            data.reproj_err = np.mean(reproj_err)
+
+        # 判断数据有效
         if data.ok and cv2.checkRange(data.camera_mat) and cv2.checkRange(data.dist_coeff):
             # 确保两个矩阵具有相同的形状
             assert data.camera_mat.shape == self.init_camera_mat_normal.shape, "矩阵形状不匹配"
             # 计算两个矩阵每个元素的差的绝对值
             abs_diff = np.abs(data.camera_mat - self.init_camera_mat_normal)
             # 计算init矩阵对应位置的阈值
-            threshold = 0.15 * np.abs(self.init_camera_mat_normal)
+            threshold = m_global.similar_threshold * np.abs(self.init_camera_mat_normal)  # 0.15
             # 检查是否小于阈值
             below_threshold_1 = abs_diff <= threshold
 
@@ -154,23 +176,10 @@ class Camera_Cali:
             if not np.all(below_threshold_1) or not np.all(below_threshold_2):
                 data.ok = False
 
-        # 数据有效，计算重投影误差
-        if data.ok:
-            reproj_err = []
-
-            for i in range(len(img_point_list)):
-                corners_reproj, _ = cv2.projectPoints(obj_test[i], data.rvecs[i], data.tvecs[i],
-                                                      data.camera_mat,
-                                                      data.dist_coeff)
-                err = cv2.norm(corners_reproj, img_test[i], cv2.NORM_L2) / len(corners_reproj)
-                reproj_err.append(err)
-
-            data.reproj_err = np.mean(reproj_err)
-
-        if data is not None and data.ok:
-            print("Camera Matrix is : {}".format(data.camera_mat.tolist()))
-            print("Distortion Coefficient is : {}".format(data.dist_coeff.tolist()))
-            print("Reprojection Error is : {}".format(data.reproj_err))
+        # if data is not None and data.ok:
+        print("Camera Matrix is : {}".format(data.camera_mat.tolist()))
+        print("Distortion Coefficient is : {}".format(data.dist_coeff.tolist()))
+        print("Reprojection Error is : {}".format(data.reproj_err))
 
         return data
 

@@ -378,16 +378,20 @@ class InternalCalibrationController(BaseControllerTab):
         filename = f"chessboard_{int(time.time())}.jpg"
         pic_path = os.path.join(internal_data_path, filename)
         # 读取文件并保存
-        if m_global.m_connect_local:
-            if self.position_index == 0:
-                frame = cv2.imread("m_data/hqtest/in_L.jpg")
-            elif self.position_index == 1:
-                frame = cv2.imread("m_data/hqtest/in_ML.jpg")
-            elif self.position_index == 2:
-                frame = cv2.imread("m_data/hqtest/in_MR.jpg")
-            else:
-                frame = cv2.imread("m_data/hqtest/in_R.jpg")
-            cv2.imwrite(pic_path, frame)
+        try:
+            if m_global.m_connect_local:
+                if self.position_index == 0:
+                    frame = cv2.imread("m_data/hqtest/in_L.jpg")
+                elif self.position_index == 1:
+                    frame = cv2.imread("m_data/hqtest/in_ML.jpg")
+                elif self.position_index == 2:
+                    frame = cv2.imread("m_data/hqtest/in_MR.jpg")
+                else:
+                    frame = cv2.imread("m_data/hqtest/in_R.jpg")
+                cv2.imwrite(pic_path, frame)
+        except Exception as e:
+            print(f"img{self.position_index}读取出现错误：{e}")
+            return False
         else:
             ret = app_model.video_server.save_frame(self.direction_list[self.position_index], pic_path, False)
             if ret != 0:
@@ -692,7 +696,7 @@ class InternalCalibrationController(BaseControllerTab):
                 self.work_thread_state = False
                 self.show_message_signal.emit(True, "外参标定完成")
                 ret = True
-            server.logout()
+            # server.logout()
         else:
             self.show_message_signal.emit(False, "数据上传失败")
             server.logout()

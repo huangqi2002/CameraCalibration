@@ -126,9 +126,9 @@ class BaseControllerTab(BaseController):
             app_model.video_server.resume(key)
             ret_a = None
             if video.label is not None:
-                if video.timer is None:
-                    video.timer = QTimer(self)
-                    ret_a = video.timer.timeout.connect(partial(self.update_frame, camera, video))
+                # if video.timer is None:
+                video.timer = QTimer(self)
+                ret_a = video.timer.timeout.connect(partial(self.update_frame, camera, video))
                 video.timer.start(100)
                 # print(f"{key} Timer is active: {ret_a}", video.timer.isActive())
             # print("start_timer")
@@ -180,8 +180,11 @@ class BaseControllerTab(BaseController):
     # video中包含了相机对lable的对应关系
     def update_frame(self, camera, video):
         # print(f"{camera.rtsp_url} update_frame\n")
-        if camera is None or camera.frame is None:
+        if camera is None:
             # self.log.log_err(f"{camera} Tab({self.tab_index}), Invalid camera or frame")
+            return
+        if camera.frame is None:
+            camera.frame_is_ok = False
             return
         if not camera.frame_is_ok:
             return

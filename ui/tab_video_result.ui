@@ -93,7 +93,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QLabel" name="label_img_2">
+       <widget class="ScreenClickableLabel" name="label_img_2">
         <property name="minimumSize">
          <size>
           <width>72</width>
@@ -145,7 +145,7 @@
        </spacer>
       </item>
       <item>
-       <widget class="QLabel" name="label_img_3">
+       <widget class="ScreenClickableLabel" name="label_img_3">
         <property name="minimumSize">
          <size>
           <width>72</width>
@@ -192,6 +192,11 @@
    <class>ClickableLabel</class>
    <extends>QLabel</extends>
    <header location="global">ClickableLabel</header>
+  </customwidget>
+  <customwidget>
+   <class>ScreenClickableLabel</class>
+   <extends>QLabel</extends>
+   <header location="global">screenclickablelabel.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -194,8 +194,12 @@ class VideoCalibrationController(BaseControllerTab):
             local_img_2 = local_img_2.replace("in", "ex")
 
         if m_global.m_connect_local:
-            frame = cv2.imread(f"m_data/hqtest/{local_img_1}.jpg")
-            cv2.imwrite(image_path_1, frame)
+            try:
+                frame = cv2.imread(f"m_data/hqtest/{local_img_1}.jpg")
+                cv2.imwrite(image_path_1, frame)
+            except Exception as e:
+                print(f"m_data/hqtest/{local_img_1}.jpg读取出现错误：{e}")
+                return False
         else:
             app_model.video_server.save_frame(save_frame_key_1, image_path_1)
 
@@ -208,8 +212,12 @@ class VideoCalibrationController(BaseControllerTab):
 
         # if True:
         if m_global.m_connect_local:
-            frame = cv2.imread(f"m_data/hqtest/{local_img_2}.jpg")
-            cv2.imwrite(image_path_2, frame)
+            try:
+                frame = cv2.imread(f"m_data/hqtest/{local_img_2}.jpg")
+                cv2.imwrite(image_path_2, frame)
+            except Exception as e:
+                print(f"m_data/hqtest/{local_img_2}.jpg读取出现错误：{e}")
+                return False
         else:
             app_model.video_server.save_frame(save_frame_key_2, image_path_2)
 
