@@ -196,7 +196,7 @@
   <customwidget>
    <class>ScreenClickableLabel</class>
    <extends>QLabel</extends>
-   <header location="global">screenclickablelabel.h</header>
+   <header location="global">ScreenClickableLabel</header>
   </customwidget>
  </customwidgets>
  <resources/>

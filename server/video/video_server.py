@@ -356,8 +356,14 @@ class VideoServer(QObject):
                     # ret, frame = camera.cap.read()
                     # if direction == "left":
                     #     print(f"wait time 2 : {time.time() - wait_time}")
+                    # if m_global.m_global_debug:
+                    #     time.sleep(0.2)
+                    #     read_now = True
 
                     if not ret:
+                        # if m_global.m_global_debug:
+                        #     camera.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
                         print(f"{direction} Failed to retrieve frame")
                         camera.frame_error_count += 1
                         if camera.frame_error_count >= camera.frame_time * 2:

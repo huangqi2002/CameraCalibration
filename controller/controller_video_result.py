@@ -102,12 +102,18 @@ class VideoResultController(BaseControllerTab):
 
     def on_download(self):
         # 获取参数
-        result = server.get_external_cfg()
-        if result is None:
+        try:
+            result = server.get_external_cfg()
+            if result is None:
+                return
+            self.cfg_json = result['body']
+            # with open("data/external/9fdebd0d-85b94feb/external_cfg.json", 'r') as file:
+            #     self.cfg_json = json.load(file)
+            cfg = json.dumps(self.cfg_json, indent=4, separators=(', ', ': '), ensure_ascii=False)
+            app_model.video_server.fisheye_init(cfg)
+        except Exception as e:
+            print(f"获取参数错误：{e}")
             return
-        self.cfg_json = result['body']
-        cfg = json.dumps(self.cfg_json, indent=4, separators=(', ', ': '), ensure_ascii=False)
-        app_model.video_server.fisheye_init(cfg)
         print("获取参数成功")
 
         for dirct in self.dirct_list:
@@ -180,10 +186,14 @@ class VideoResultController(BaseControllerTab):
 
         # 鱼眼相机点转去畸变普通相机
         print("鱼眼相机点转去畸变普通相机…………")
-        calib_param = cfg[dirct_1 + "_calib"]
+        try:
+            calib_param = cfg[dirct_1 + "_calib"]
+            M = np.array(cfg[dirct_1 + "_M"]).reshape(3, 3)
+        except Exception as e:
+            print(f"cfg[{dirct_1 + "_M"}]获取时出现错误：{e}")
+            return frame_1, frame_2
         mtx_1 = np.array(calib_param[2:11]).reshape(3, 3)
         dist_1 = np.array(calib_param[11:])
-        M = np.array(cfg[dirct_1 + "_M"]).reshape(3, 3)
         new_camera_matrix_1 = np.multiply(mtx_1, [[0.6, 1, 1], [1, 0.6, 1], [1, 1, 1]])
         point_undistort = cv2.fisheye.undistortPoints(np.array([[point]]), mtx_1, dist_1, R=new_camera_matrix_1)[0][0]
         point_homogeneous = np.insert(point_undistort, 2, 1, 0)
@@ -195,7 +205,11 @@ class VideoResultController(BaseControllerTab):
 
         # 去畸变普通相机反畸变
         print("去畸变普通相机反畸变…………")
-        calib_param = cfg[dirct_2 + "_calib"]
+        try:
+            calib_param = cfg[dirct_2 + "_calib"]
+        except Exception as e:
+            print(f"cfg[{dirct_1 + "_M"}]获取时出现错误：{e}")
+            return frame_1, frame_2
         mtx_2 = np.array(calib_param[2:11]).reshape(3, 3)
         dist_2 = np.array(calib_param[11:])
         new_camera_matrix_2 = np.multiply(mtx_2, [[0.8, 1, 1], [1, 0.8, 1], [1, 1, 1]])

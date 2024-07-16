@@ -405,15 +405,6 @@ class InternalCalibrationController(BaseControllerTab):
         calib.extend(distortion_array)
         return calib
 
-    # # 进行内参计算
-    # def get_inter_stitch(self):
-    #     # if not self.check_device_factory_mode():
-    #     #     self.work_thread_state = False
-    #     #     return
-    #     self.show_message_signal.emit(True, "开始计算相机内参")
-    #     get_stitch(self.internal_data_path, self.work_thread_finish_success_signal,
-    #                self.work_thread_finish_failed_signal)
-
     def create_path_and_cali_ex(self, internal_path=None):
         # 创建目录
         sn = app_model.device_model.sn
@@ -728,20 +719,6 @@ class InternalCalibrationController(BaseControllerTab):
 
         self.one_click_thread = False
         self.one_click_thread_event.set()
-
-    # 保存内参参数到本地
-    @staticmethod
-    def save_internal_file(result=None, internal_file_path=None, file_name="inter_cfg.json"):
-        if not result:
-            return
-        if internal_file_path is None:
-            internal_file_path = os.path.join(os.getcwd(), "result", str(int(time.time())))
-        if not os.path.exists(internal_file_path):
-            os.makedirs(internal_file_path)
-        internal_file = os.path.join(internal_file_path, file_name)
-        with open(internal_file, "w", encoding="utf-8") as f:
-            f.write(result)
-        return internal_file
 
     @staticmethod
     def save_file(result=None, file_path=None, file_name="inter_cfg.json"):

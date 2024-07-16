@@ -1,0 +1,57 @@
+{
+  "FG": [
+    {
+      "direction": "left",
+      "shame": "rtsp",
+      "url": "/left_main_1_0",
+      "port": 8557
+    },
+    {
+      "direction": "middle_left",
+      "shame": "rtsp",
+      "url": "/out_left_sub_3_1",
+      "port": 8557
+    },
+    {
+      "direction": "middle_right",
+      "shame": "rtsp",
+      "url": "/out_right_sub_4_1",
+      "port": 8557
+    },
+    {
+      "direction": "right",
+      "shame": "rtsp",
+      "url": "/right_main_2_0",
+      "port": 8557
+    },
+    {
+      "direction": "stitch",
+      "shame": "rtsp",
+      "url": "/stitch_0_0",
+      "port": 8557
+    },
+    {
+      "direction": "all",
+      "shame": "rtsp",
+      "url": "/stitch_0_0",
+      "port": 8557
+    }
+  ],
+  "RX5": [
+    {
+      "shame": "rtsp",
+      "url": "/left_main_0_1",
+      "port": 8557
+    },
+    {
+      "shame": "rtsp",
+      "url": "/right_main_0_5",
+      "port": 8557
+    },
+    {
+      "shame": "rtsp",
+      "url": "/stitch_0_0",
+      "port": 8557
+    }
+  ]
+}

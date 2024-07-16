@@ -22,7 +22,8 @@ class MainWindow(QtWidgets.QMainWindow, BaseView, Ui_MainWindow):
         super().__init__()
         self.setupUi(self)
 
-        self.setWindowTitle(f"{self.windowTitle}({app_model.version_app})")
+        # self.setWindowTitle(f"{self.windowTitle}({app_model.version_app})")
+        self.setWindowTitle(f"CameraCalibrationTool({app_model.version_app})")
 
         self.widget_common_bar = WidgetCommonBar()
         self.widget_common_bar.lineEdit_device_ip.setText("192.168.1.100")

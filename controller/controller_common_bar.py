@@ -44,7 +44,10 @@ class CommonBarController(BaseController):
 
     # 在message栏里实时显示连接数
     def cameraconnect_num_show(self, cnt):
-        self.show_message_signal.emit(True, f"连接摄像头:{cnt}")
+        if cnt == 0 and not app_model.is_connected:
+            self.show_message_signal.emit(True, f"断开连接成功")
+        else:
+            self.show_message_signal.emit(True, f"连接摄像头:{cnt}")
 
     # 选择设备类型
     def on_choose_device_type(self, device_type):
@@ -150,6 +153,8 @@ class CommonBarController(BaseController):
         for config_item in video_config_list:
             camera = Camera()
             camera.rtsp_url = f"{config_item.get('shame')}://{app_model.device_model.ip}:{config_item.get('port')}{config_item.get('url')}"
+            # if m_global.m_global_debug:
+            #     camera.rtsp_url = f"{config_item.get('test')}"
             direction = config_item.get("direction")
             app_model.camera_list[direction] = camera
         camera = Camera()

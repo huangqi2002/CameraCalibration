@@ -131,10 +131,7 @@ class VideoServer(QObject):
         self.fisheye_dll.fisheye_run_yuv(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
                                          , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
                                          , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
-        if m_global.m_global_debug:
-            if int(time.time()) % 3 == 0:
-                cv2.imwrite('output_image.jpg', stitch_image)
-                print("保存成功")
+
         #
         # stitch_image = cv2.rotate(stitch_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
         # stitch_image = self.stitch_crop(stitch_image)
