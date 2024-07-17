@@ -10,7 +10,7 @@ class Camera:
     clarity_dict = []
 
     fps = 10
-    frame_time = int(1000 / fps)
+    frame_time = int(50 / fps)
     frame_error_count = 0
 
     cap = None

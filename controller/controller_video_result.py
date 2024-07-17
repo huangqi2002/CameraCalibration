@@ -24,6 +24,12 @@ class VideoResultController(BaseControllerTab):
 
     def init(self):
         self.tab_index = 1
+
+        self.view.radioButton_close.setChecked(True)
+        self.view.radioButton_close.setChecked(False)
+
+        self.view.radioButton_close.setChecked(True)
+
         # 绑定配置文件中的相机与去显示的lable
         self.bind_label_and_timer("left", None, 0)  # 270)
         self.bind_label_and_timer("middle_left", None, 270)
@@ -46,6 +52,9 @@ class VideoResultController(BaseControllerTab):
         # 选点
         self.view.label_img_2.lable_click_signal.connect(self.set_point_left)
         self.view.label_img_3.lable_click_signal.connect(self.set_point_right)
+
+        # 远近预览
+        self.view.radioButton_far.toggled.connect(self.set_radioButton_distance)
 
         # 显示当前值的标签
         self.view.changestate_pushButton.clicked.connect(self.button_clicked)  # 连接按钮点击事件到槽函数
@@ -81,6 +90,10 @@ class VideoResultController(BaseControllerTab):
     #     print("emit lable_click_ctrl:", click_pos)
     #     app_model.video_server.fisheye_ctrl(click_pos)
 
+    def set_radioButton_distance(self):
+        app_model.video_server.preview_far = self.view.radioButton_far.isChecked()
+        # print(self.radioButton_distance_state)
+
     def set_point_left(self, x, y):
         self.select_point["left"] = np.array([x * 1.0, y * 1.0])
         self.set_show_screnn_left()
@@ -107,6 +120,7 @@ class VideoResultController(BaseControllerTab):
             if result is None:
                 return
             self.cfg_json = result['body']
+            print(self.cfg_json)
             # with open("data/external/9fdebd0d-85b94feb/external_cfg.json", 'r') as file:
             #     self.cfg_json = json.load(file)
             cfg = json.dumps(self.cfg_json, indent=4, separators=(', ', ': '), ensure_ascii=False)
@@ -118,6 +132,9 @@ class VideoResultController(BaseControllerTab):
 
         for dirct in self.dirct_list:
             self.frame_dirct[dirct] = self.download_img(dirct)
+            if self.frame_dirct[dirct] is None:
+                print("获取图像失败")
+                return
         print("获取图像成功")
         # 获取图像
         # if m_global.m_connect_local:
@@ -132,7 +149,8 @@ class VideoResultController(BaseControllerTab):
     def set_show_screnn_left(self):
         if self.cfg_json is None:
             return
-        frame_1, frame_3 = self.transformed_point("left", "mid_left", cfg=self.cfg_json, select_point=self.select_point["left"])
+        frame_1, frame_3 = self.transformed_point("left", "mid_left", cfg=self.cfg_json,
+                                                  select_point=self.select_point["left"])
         print("left: 点变换成功")
         self.set_screnn_pixmap(frame_3, self.view.label_img_1)
         self.set_screnn_pixmap(frame_1, self.view.label_img_2)
@@ -141,7 +159,8 @@ class VideoResultController(BaseControllerTab):
     def set_show_screnn_right(self):
         if self.cfg_json is None:
             return
-        frame_2, frame_4 = self.transformed_point("right", "mid_right", cfg=self.cfg_json, select_point=self.select_point["right"])
+        frame_2, frame_4 = self.transformed_point("right", "mid_right", cfg=self.cfg_json,
+                                                  select_point=self.select_point["right"])
         print("right: 点变换成功")
         self.set_screnn_pixmap(frame_2, self.view.label_img_3)
         self.set_screnn_pixmap(frame_4, self.view.label_img_4)
@@ -217,7 +236,7 @@ class VideoResultController(BaseControllerTab):
                                                  (frame_2.shape[1], frame_2.shape[0]),
                                                  cv2.CV_32FC1)
         x, y = int(transformed_points[1]), int(transformed_points[0])
-        if 0 <= x < mapx.shape[0] and 0 <= y < mapx.shape[1] :
+        if 0 <= x < mapx.shape[0] and 0 <= y < mapx.shape[1]:
             point_2 = [mapx[x, y], mapy[x, y]]
             # print(point_2)
 
@@ -243,13 +262,35 @@ class VideoResultController(BaseControllerTab):
 
     def download_img(self, dirct):
         frame = None
-        if dirct == "mid_left":
-            frame = cv2.imread("m_data/hqtest/in_ML.jpg")
-        elif dirct == "left":
-            frame = cv2.imread("m_data/hqtest/in_L.jpg")
-        elif dirct == "right":
-            frame = cv2.imread("m_data/hqtest/in_R.jpg")
+
+        if m_global.m_global_debug:
+            if dirct == "mid_left":
+                frame = cv2.imread("m_data/hqtest/in_ML.jpg")
+            elif dirct == "left":
+                frame = cv2.imread("m_data/hqtest/in_L.jpg")
+            elif dirct == "right":
+                frame = cv2.imread("m_data/hqtest/in_R.jpg")
+            else:
+                frame = cv2.imread("m_data/hqtest/in_MR.jpg")
         else:
-            frame = cv2.imread("m_data/hqtest/in_MR.jpg")
+            img_url = "http://" + app_model.device_model.ip + "/download.php/chessboard/"
+            if dirct == "mid_left":
+                img_url = img_url + "chessboard_ml.jpg"
+                frame = server.fetchImageFromHttp(img_url)
+            elif dirct == "left":
+                img_url = img_url + "chessboard_l.jpg"
+                frame = server.fetchImageFromHttp(img_url)
+            elif dirct == "right":
+                img_url = img_url + "chessboard_r.jpg"
+                frame = server.fetchImageFromHttp(img_url)
+            else:
+                img_url = img_url + "chessboard_mr.jpg"
+                frame = server.fetchImageFromHttp(img_url)
+
+        if frame is None:
+            print("读取图片失败")
 
         return frame
+
+
+

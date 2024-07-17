@@ -19,8 +19,8 @@ from server.aruco_vz import aruco_tool
 from utils.run_para import m_global
 
 path_root = os.getcwd()
-path_fisheye_dll = os.path.join(path_root, "lib3rd", "fisheye", "video_fuse.dll")
-
+path_fisheye_dll_1 = os.path.join(path_root, "lib3rd", "fisheye", "video_fuse_1.dll")
+path_fisheye_dll_2_5 = os.path.join(path_root, "lib3rd", "fisheye", "video_fuse_2_5.dll")
 
 class VideoServer(QObject):
     signal_cameraconnect_num = pyqtSignal(int)
@@ -51,6 +51,9 @@ class VideoServer(QObject):
         self.undistorted_bool = False  # 内参展示界面是否去畸变
         self.clarity_test_bool = False  # 内参展示界面是否检测清晰度
 
+        # 预览远近
+        self.preview_far = False
+
         self.four_img_flag = {'middle_left': 0, 'left': 0, 'right': 0, 'middle_right': 0}
         # self.camera_L_inter = app_model.config_internal.get("left_calib")
         # self.camera_ML_inter = app_model.config_internal.get("mid_left_calib")
@@ -64,7 +67,10 @@ class VideoServer(QObject):
         self.mapy = {}
         self.internal_data = None
 
-        self.fisheye_dll = ctypes.CDLL(path_fisheye_dll)
+        self.fisheye_dll_1 = ctypes.CDLL(path_fisheye_dll_1)
+        self.fisheye_dll_1.run_mat_four_image.restype = ctypes.c_char_p
+        self.fisheye_dll_2_5 = ctypes.CDLL(path_fisheye_dll_2_5)
+        self.fisheye_dll_2_5.run_mat_four_image.restype = ctypes.c_char_p
 
         ex_internal_data_path = app_model.config_ex_internal_path
         if ex_internal_data_path is None:
@@ -132,10 +138,15 @@ class VideoServer(QObject):
 
     def fisheye_init(self, cfg):
         try:
-            self.fisheye_dll.fisheye_init.argtypes = [ctypes.c_char_p,
-                                                      ctypes.c_int,
-                                                      ctypes.c_int]
-            self.fisheye_dll.fisheye_init(cfg.encode('utf-8'), 2000, 1000)
+            self.fisheye_dll_1.fisheye_init.argtypes = [ctypes.c_char_p,
+                                                        ctypes.c_int,
+                                                        ctypes.c_int]
+            self.fisheye_dll_1.fisheye_init(cfg.encode('utf-8'), 2000, 1000)
+
+            self.fisheye_dll_2_5.fisheye_init.argtypes = [ctypes.c_char_p,
+                                                          ctypes.c_int,
+                                                          ctypes.c_int]
+            self.fisheye_dll_2_5.fisheye_init(cfg.encode('utf-8'), 2000, 1000)
         except Exception as e:
             print(f"鱼眼dll初始化时出错：{e}")
 
@@ -150,17 +161,15 @@ class VideoServer(QObject):
         # cv2.imshow("3", cv2.resize(frame_3, (400, 300)))
         # cv2.imshow("4", cv2.resize(frame_4, (400, 300)))
         # cv2.waitKey(0)
-        #
+
         # if m_global.m_connect_local:
-        #     frame_1 = cv2.imread("m_data/hqtest/chessboard_L0.jpg")
-        #     frame_2 = cv2.imread("m_data/hqtest/chessboard_R0.jpg")
-        #     frame_3 = cv2.imread("m_data/hqtest/chessboard_ML0.jpg")
-        #     frame_4 = cv2.imread("m_data/hqtest/chessboard_MR0.jpg")
+        #     frame_1 = cv2.imread("D:\\VZ\\camera_calibration\\CameraCalibrationTool_repair\\data\\repair\\external\\5dd6f04b-a77c9018\\chessboard_L.jpg")
+        #     frame_2 = cv2.imread("D:\\VZ\\camera_calibration\\CameraCalibrationTool_repair\\data\\repair\\external\\5dd6f04b-a77c9018\\chessboard_R.jpg")
+        #     frame_3 = cv2.imread("D:\\VZ\\camera_calibration\\CameraCalibrationTool_repair\\data\\repair\\external\\5dd6f04b-a77c9018\\chessboard_ML_L.jpg")
+        #     frame_4 = cv2.imread("D:\\VZ\\camera_calibration\\CameraCalibrationTool_repair\\data\\repair\\external\\5dd6f04b-a77c9018\\chessboard_MR_R.jpg")
 
         height = 1000
         width = 2000
-
-        self.fisheye_dll.run_mat_four_image.restype = ctypes.c_char_p
 
         stitch_image = np.zeros(dtype=np.uint8, shape=(height, width, 3))
 
@@ -169,11 +178,18 @@ class VideoServer(QObject):
         # frame_3 = self.black_edge(frame_3)
         # frame_4 = self.black_edge(frame_4)
         try:
-            self.fisheye_dll.run_mat_four_image(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                                , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                                , frame_3.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                                , frame_4.ctypes.data_as(C.POINTER(C.c_ubyte))
-                                                , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
+            if self.preview_far:
+                self.fisheye_dll_2_5.run_mat_four_image(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                      , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                      , frame_3.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                      , frame_4.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                      , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
+            else:
+                self.fisheye_dll_1.run_mat_four_image(frame_1.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                      , frame_2.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                      , frame_3.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                      , frame_4.ctypes.data_as(C.POINTER(C.c_ubyte))
+                                                      , stitch_image.ctypes.data_as(C.POINTER(C.c_ubyte)))
         except Exception as e:
             print(f"鱼眼dll拼接时出错：{e}")
             stitch_image = None
@@ -385,6 +401,20 @@ class VideoServer(QObject):
                                 camera.clarity_dict = {direction: clarity}
                             if self.undistorted_bool:
                                 frame = self.undistorted_frame(frame, direction)
+                        # if m_global.m_connect_local:
+                        #     if direction == "mid_left":
+                        #         frame = cv2.imread("m_data/hqtest/in_MR.jpg")
+                        #         frame = cv2.flip(frame, 1)
+                        #     elif direction == "left":
+                        #         frame = cv2.imread("m_data/hqtest/in_R.jpg")
+                        #     elif direction == "right":
+                        #         frame = cv2.imread("m_data/hqtest/in_R.jpg")
+                        #         frame = cv2.rotate(frame, cv2.ROTATE_180)
+                        #         frame = cv2.flip(frame, 0)
+                        #     else:
+                        #         frame = cv2.imread("m_data/hqtest/in_MR.jpg")
+                        #         frame = cv2.rotate(frame, cv2.ROTATE_180)
+                        #         frame = cv2.flip(frame, 0)
                         camera.frame = frame
                         camera.frame_is_ok = True
                         self.four_img_flag[direction] = 1
@@ -517,11 +547,11 @@ class VideoServer(QObject):
                 if four_img_ready is False:
                     # print(f"{direction} fg Failed to get frame")
                     camera.frame_error_count += 1
-                    if camera.frame_error_count >= camera.frame_time * 5:
+                    if camera.frame_error_count >= camera.frame_time * 100:
                         print("Exceeded frame error count, exiting")
                         camera.frame_error_count = 0
                         break
-                    time.sleep(camera.frame_time / 1000)
+                    time.sleep(0.1)
                     continue
                 camera.frame_error_count = 0
 
@@ -635,11 +665,11 @@ class VideoServer(QObject):
                 if four_img_ready is False:
                     # print(f"{direction} fg Failed to get frame")
                     camera.frame_error_count += 1
-                    if camera.frame_error_count >= camera.frame_time * 5:
-                        print("Exceeded frame error count, exiting")
+                    if camera.frame_error_count >= camera.frame_time * 100:
+                        print("all Exceeded frame error count, exiting")
                         camera.frame_error_count = 0
                         break
-                    time.sleep(camera.frame_time / 1000)
+                    time.sleep(0.1)
                     continue
                 camera.frame_error_count = 0
                 # 拼接图片

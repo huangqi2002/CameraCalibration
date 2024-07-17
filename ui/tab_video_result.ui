@@ -72,7 +72,7 @@
    </item>
    <item>
     <widget class="QWidget" name="widget" native="true">
-     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="2,2,0,2,0,2,2">
+     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="2,2,0,0,0,2,2">
       <item>
        <widget class="QLabel" name="label_img_1">
         <property name="minimumSize">
@@ -125,10 +125,36 @@
        </spacer>
       </item>
       <item>
-       <widget class="QPushButton" name="pushButton_begin">
-        <property name="text">
-         <string>预览</string>
-        </property>
+       <widget class="QWidget" name="widget_2" native="true">
+        <layout class="QVBoxLayout" name="verticalLayout_3">
+         <item>
+          <widget class="QPushButton" name="pushButton_begin">
+           <property name="text">
+            <string>预览</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QWidget" name="widget_3" native="true">
+           <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <item>
+             <widget class="QRadioButton" name="radioButton_close">
+              <property name="text">
+               <string>近</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="radioButton_far">
+              <property name="text">
+               <string>远</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
       <item>

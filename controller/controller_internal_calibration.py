@@ -308,10 +308,10 @@ class InternalCalibrationController(BaseControllerTab):
     # 上传文件
     def upload_file(self, device_ip, upload_file, upload_path="/mnt/usr/kvdb/usr_data_kvdb/inter_cfg",
                     check_mode=-1):
-
-        # self.one_click_thread_event.set()
-        # self.one_click_thread = True
-        # return True
+        if m_global.m_connect_local:
+            self.one_click_thread_event.set()
+            self.one_click_thread = True
+            return True
         ret = False
         if not device_ip:
             self.show_message_signal.emit(False, "数据上传:设备IP异常")

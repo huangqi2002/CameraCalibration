@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import json
+import urllib
 
+import cv2
+import numpy as np
 from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
 from utils.web_util import *
@@ -310,5 +313,19 @@ class DeviceServer:
         except Exception as e:
             print(f"{resp_type} json except: {e}")
         return False
+
+    @staticmethod
+    def fetchImageFromHttp(image_url, timeout_s=1):
+        try:
+            if image_url:
+                resp = urllib.request.urlopen(image_url, timeout=timeout_s)
+                image = np.asarray(bytearray(resp.read()), dtype="uint8")
+                image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+                return image
+            else:
+                return None
+        except Exception as error:
+            print('获取图片失败', error)
+            return None
 
 server = DeviceServer()
