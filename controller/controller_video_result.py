@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import json
+import os
 
 import cv2
 import numpy as np
@@ -120,7 +121,7 @@ class VideoResultController(BaseControllerTab):
             if result is None:
                 return
             self.cfg_json = result['body']
-            print(self.cfg_json)
+            # print(self.cfg_json)
             # with open("data/external/9fdebd0d-85b94feb/external_cfg.json", 'r') as file:
             #     self.cfg_json = json.load(file)
             cfg = json.dumps(self.cfg_json, indent=4, separators=(', ', ': '), ensure_ascii=False)
@@ -209,7 +210,7 @@ class VideoResultController(BaseControllerTab):
             calib_param = cfg[dirct_1 + "_calib"]
             M = np.array(cfg[dirct_1 + "_M"]).reshape(3, 3)
         except Exception as e:
-            print(f"cfg[{dirct_1 + "_M"}]获取时出现错误：{e}")
+            print(f"cfg[{dirct_1}_M]获取时出现错误：{e}")
             return frame_1, frame_2
         mtx_1 = np.array(calib_param[2:11]).reshape(3, 3)
         dist_1 = np.array(calib_param[11:])
@@ -227,7 +228,7 @@ class VideoResultController(BaseControllerTab):
         try:
             calib_param = cfg[dirct_2 + "_calib"]
         except Exception as e:
-            print(f"cfg[{dirct_1 + "_M"}]获取时出现错误：{e}")
+            print(f"cfg[{dirct_1}_M]获取时出现错误：{e}")
             return frame_1, frame_2
         mtx_2 = np.array(calib_param[2:11]).reshape(3, 3)
         dist_2 = np.array(calib_param[11:])
@@ -265,13 +266,25 @@ class VideoResultController(BaseControllerTab):
 
         if m_global.m_global_debug:
             if dirct == "mid_left":
-                frame = cv2.imread("m_data/hqtest/in_ML.jpg")
+                frame = cv2.imread(
+                    os.path.join(app_model.work_path_internal, str(app_model.device_model.sn), "ML\\chessboard_ML.jpg"))
+                if frame is None:
+                     frame = cv2.imread("m_data/hqtest/in_ML.jpg")
             elif dirct == "left":
-                frame = cv2.imread("m_data/hqtest/in_L.jpg")
+                frame = cv2.imread(
+                    os.path.join(app_model.work_path_internal, str(app_model.device_model.sn), "L\\chessboard_L.jpg"))
+                if frame is None:
+                    frame = cv2.imread("m_data/hqtest/in_L.jpg")
             elif dirct == "right":
-                frame = cv2.imread("m_data/hqtest/in_R.jpg")
+                frame = cv2.imread(
+                    os.path.join(app_model.work_path_internal, str(app_model.device_model.sn), "R\\chessboard_R.jpg"))
+                if frame is None:
+                    frame = cv2.imread("m_data/hqtest/in_R.jpg")
             else:
-                frame = cv2.imread("m_data/hqtest/in_MR.jpg")
+                frame = cv2.imread(
+                    os.path.join(app_model.work_path_internal, str(app_model.device_model.sn), "MR\\chessboard_MR.jpg"))
+                if frame is None:
+                    frame = cv2.imread("m_data/hqtest/in_MR.jpg")
         else:
             img_url = "http://" + app_model.device_model.ip + "/download.php/chessboard/"
             if dirct == "mid_left":
@@ -291,6 +304,3 @@ class VideoResultController(BaseControllerTab):
             print("读取图片失败")
 
         return frame
-
-
-

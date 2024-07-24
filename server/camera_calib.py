@@ -76,16 +76,30 @@ class Camera_Cali:
             flags=cv2.fisheye.CALIB_FIX_SKEW | cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC | cv2.CALIB_USE_INTRINSIC_GUESS,
             criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 1000, 1e-6))
 
+        # for i in range(len(data.rvecs)):
+        #     if abs(data.rvecs[len(data.rvecs) - 1 - i][0][0]) > 10000:
+        #         obj_train.pop(len(data.rvecs) - 1 - i)
+        #         img_train.pop(len(data.rvecs) - 1 - i)
+        #         obj_test.pop(len(data.rvecs) - 1 - i)
+        #         img_test.pop(len(data.rvecs) - 1 - i)
+        #
+        # data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.fisheye.calibrate(
+        #     obj_train, img_train, frame_size, data.camera_mat, data.dist_coeff,
+        #     flags=cv2.fisheye.CALIB_FIX_SKEW | cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC,# | cv2.CALIB_USE_INTRINSIC_GUESS,
+        #     criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 1000, 1e-6))
+
+
         # 计算重投影误差
         if data.ok:
             reproj_err = []
 
             for i in range(len(img_point_list)):
                 corners_reproj, _ = cv2.fisheye.projectPoints(obj_test[i], data.rvecs[i], data.tvecs[i],
-                                                              data.camera_mat,
-                                                              data.dist_coeff)
+                                                              self.init_camera_mat,
+                                                              self.init_dist_coeff)
                 err = cv2.norm(corners_reproj, img_test[i], cv2.NORM_L2) / len(corners_reproj)
                 reproj_err.append(err)
+                # print(err)
 
             data.reproj_err = np.mean(reproj_err)
 
@@ -140,6 +154,18 @@ class Camera_Cali:
             obj_train, img_train, frame_size, data.camera_mat, data.dist_coeff,
             flags=cv2.CALIB_USE_INTRINSIC_GUESS,
             criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 1000, 1e-6))
+
+        # for i in range(len(data.rvecs)):
+        #     if abs(data.rvecs[len(data.rvecs) - 1 - i][0][0]) > 10000:
+        #         obj_train.remove(len(data.rvecs) - 1 - i)
+        #         img_train.remove(len(data.rvecs) - 1 - i)
+        #         obj_test.remove(len(data.rvecs) - 1 - i)
+        #         img_test.remove(len(data.rvecs) - 1 - i)
+        #
+        # data.ok, data.camera_mat, data.dist_coeff, data.rvecs, data.tvecs = cv2.calibrateCamera(
+        #     obj_train, img_train, frame_size, data.camera_mat, data.dist_coeff,
+        #     flags=cv2.CALIB_USE_INTRINSIC_GUESS,
+        #     criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 1000, 1e-6))
 
         # 计算重投影误差
         if data.ok:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 class App:
-    version_app = "v1.2.2"
+    version_app = "v1.2.7"
 
     work_path_root: str
     work_path_configs: str

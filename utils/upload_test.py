@@ -40,9 +40,18 @@ class upload_test:
             headers = HEADERS
 
         try:
+            print(f"{device.url_host}{url}")
+            print(params)
+            print(files)
+            print(data)
+            print(timeout)
+            print(headers)
+            print(proxies)
+
             resp = device.session.post(url=f"{device.url_host}{url}", params=params, files=files, data=data,
                                        timeout=timeout,
                                        headers=headers, proxies=proxies)
+            print(resp.content.decode(encoding=encoding, errors="ignore"))
             if resp.status_code == 200:
                 return resp.content.decode(encoding=encoding, errors="ignore")
         except Exception as e:
@@ -92,4 +101,4 @@ if __name__ == '__main__':
     # cv2.waitKey()
     upload_tools = upload_test()
     upload_tools.set_ip("192.168.110.82")
-    upload_tools.upload_file(upload_path="/mnt/usr/kvdb/usr_data_kvdb/external_cfg.json", filename="D:\\VZ\\camera_calibration\\CameraCalibrationTool_repair\\data\\repair\\external\\5dd6f04b-a77c9018\\external_cfg.json")
+    upload_tools.upload_file(upload_path="/mnt/usr/kvdb/usr_data_kvdb/000000external_cfg.json", filename="D:\\camera_calibration\\data(1)\\external\\28034f68-7f7613a3\\external_cfg.json")

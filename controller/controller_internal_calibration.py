@@ -167,7 +167,9 @@ class InternalCalibrationController(BaseControllerTab):
                 return False
 
             img = cv2.imread(pic_path)
+            begin_time = time.time()
             ok, obj_point_list, img_point_list, id_dict = self.get_aruco_corners(img, f"result/{filename}")
+            print(f"get_aruco_corners spend time :  {time.time() - begin_time}")
 
             if not ok:
                 print(f"{filename} find error")
@@ -308,10 +310,10 @@ class InternalCalibrationController(BaseControllerTab):
     # 上传文件
     def upload_file(self, device_ip, upload_file, upload_path="/mnt/usr/kvdb/usr_data_kvdb/inter_cfg",
                     check_mode=-1):
-        if m_global.m_connect_local:
-            self.one_click_thread_event.set()
-            self.one_click_thread = True
-            return True
+        # if m_global.m_connect_local:
+        #     self.one_click_thread_event.set()
+        #     self.one_click_thread = True
+        #     return True
         ret = False
         if not device_ip:
             self.show_message_signal.emit(False, "数据上传:设备IP异常")
@@ -375,7 +377,15 @@ class InternalCalibrationController(BaseControllerTab):
             obj_point_list, img_point_list, frame_size, camera_type = chessboard["obj_point_list"], chessboard[
                 "img_point_list"], chessboard["frame_size"], chessboard["camera_type"]
 
+            # img = cv2.imread("m_data/hqtest/in_L.jpg")
+            # for img_point_1 in img_point_list:
+            #     for i in range(len(img_point_1)):
+            #         point = tuple((int(img_point_1[i][0][0]), int(img_point_1[i][0][1])))
+            #         color = tuple((255, 0, 0))  # 提取 RGB 颜色值
+            #         cv2.circle(img, point, 5, color, -1)  # 绘制半径为5的圆点，颜色为 color
+            # cv2.imwrite("m_data/hqtest/in_L_111.jpg", img)
             data = self.camera_cali.calib_in(obj_point_list, img_point_list, frame_size, camera_type)
+
             if data.camera_mat is None or data.dist_coeff is None:
                 return False, f"{dirct} NoBoeardError"
             elif data.reproj_err >= precision:
@@ -471,6 +481,12 @@ class InternalCalibrationController(BaseControllerTab):
                                                                                                   common_board[i],
                                                                                                   camera_type_1,
                                                                                                   rotate_list[i])
+            if ret_1 is None:
+                self.show_message_signal.emit(False, f"拼接标定板检测失败")
+                print("拼接标定板检测失败")
+                self.ex_cali_finish(False, cfg_params)
+                return
+
             print(f"{prefix}{dirct_1}:")
             print(f"rvecs_1:\n{rvecs_1}")
             print(f"tvecs_1:\n{tvecs_1}\n")
@@ -478,6 +494,11 @@ class InternalCalibrationController(BaseControllerTab):
                                                                                                   common_board[i],
                                                                                                   camera_type_2,
                                                                                                   rotate_list[i])
+            if ret_2 is None:
+                self.show_message_signal.emit(False, f"拼接标定板检测失败")
+                print("拼接标定板检测失败")
+                self.ex_cali_finish(False, cfg_params)
+                return
             print(f"{prefix}{dirct_2}:")
             print(f"rvecs_2:\n{rvecs_2}")
             print(f"tvecs_2:\n{tvecs_2}")
@@ -570,7 +591,10 @@ class InternalCalibrationController(BaseControllerTab):
         return distance
 
     def cali_ex_one_camera(self, dirct, common_board, camera_type, rotate):
+
         dirct_1_key_list = list(self.chessboard[dirct]["id_dict"].keys())
+        if common_board not in dirct_1_key_list:
+            return None, None, None, None, None
         index = dirct_1_key_list.index(common_board)
         obj_point_list = self.chessboard[dirct]["obj_point_list"][index]
         img_point_list = self.chessboard[dirct]["img_point_list"][index]

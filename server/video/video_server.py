@@ -138,6 +138,8 @@ class VideoServer(QObject):
 
     def fisheye_init(self, cfg):
         try:
+            # print(cfg)
+
             self.fisheye_dll_1.fisheye_init.argtypes = [ctypes.c_char_p,
                                                         ctypes.c_int,
                                                         ctypes.c_int]
@@ -162,11 +164,12 @@ class VideoServer(QObject):
         # cv2.imshow("4", cv2.resize(frame_4, (400, 300)))
         # cv2.waitKey(0)
 
-        # if m_global.m_connect_local:
-        #     frame_1 = cv2.imread("D:\\VZ\\camera_calibration\\CameraCalibrationTool_repair\\data\\repair\\external\\5dd6f04b-a77c9018\\chessboard_L.jpg")
-        #     frame_2 = cv2.imread("D:\\VZ\\camera_calibration\\CameraCalibrationTool_repair\\data\\repair\\external\\5dd6f04b-a77c9018\\chessboard_R.jpg")
-        #     frame_3 = cv2.imread("D:\\VZ\\camera_calibration\\CameraCalibrationTool_repair\\data\\repair\\external\\5dd6f04b-a77c9018\\chessboard_ML_L.jpg")
-        #     frame_4 = cv2.imread("D:\\VZ\\camera_calibration\\CameraCalibrationTool_repair\\data\\repair\\external\\5dd6f04b-a77c9018\\chessboard_MR_R.jpg")
+        if m_global.m_connect_local:
+            local_path = "m_data\\hqtest"
+            frame_1 = cv2.imread(local_path + "\\in_L.jpg")
+            frame_2 = cv2.imread(local_path + "\\in_R.jpg")
+            frame_3 = cv2.imread(local_path + "\\in_ML.jpg")
+            frame_4 = cv2.imread(local_path + "\\in_MR.jpg")
 
         height = 1000
         width = 2000
