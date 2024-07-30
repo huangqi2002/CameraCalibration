@@ -9,3 +9,5 @@
 result
 m_data
 data
+/__pycache__
+/.idea
