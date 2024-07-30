@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import sys
 
-import qdarkstyle
+# import qdarkstyle
 from PyQt5 import QtWidgets
 
 from ui.mainwindow import MainWindow
