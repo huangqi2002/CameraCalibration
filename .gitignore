@@ -4,3 +4,4 @@
 *.jpg
 *.png
 *.pdf
+/server/internal/data_test
