@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import ctypes
 import ctypes as C
-import json
 import os
 import threading
 import time
@@ -15,7 +14,7 @@ from PyQt5.QtGui import QImage, QPixmap
 
 from model.app import app_model
 from model.camera import Camera
-from server.aruco_vz import aruco_tool
+from server.aruco.aruco_vz import aruco_tool
 from utils.run_para import m_global
 
 path_root = os.getcwd()

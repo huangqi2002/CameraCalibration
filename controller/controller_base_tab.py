@@ -4,16 +4,13 @@ import json
 import os
 import threading
 import time
-from enum import Enum
 from functools import partial
 
 import cv2
-import numpy as np
-from PyQt5.QtCore import QTimer, QObject, pyqtSlot
+from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel
 
-from server.external.ex_Calib import ex_calib
 from utils.run_para import m_global
 from controller.controller_base import BaseController
 from model.app import app_model

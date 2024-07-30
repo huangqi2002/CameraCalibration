@@ -2,7 +2,7 @@ import argparse
 import cv2
 import numpy as np
 import os
-from server.aruco_vz import aruco_tool
+from server.aruco.aruco_vz import aruco_tool
 
 # from server.external.lib3rd.load_lib import chess_board_sdk
 

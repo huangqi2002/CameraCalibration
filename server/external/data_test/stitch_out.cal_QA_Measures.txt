@@ -1,8 +1,0 @@
-Camera Number : 2
-Calibration Sets Number : 0
-
- ---------Total QA Measures--------- 
-Average Reprojection Error        : -nan(ind)
-Maximum Reprojection Error        : 0
-Matched Point Count               : 0
-Minimum Dist Ratio                : -nan(ind)

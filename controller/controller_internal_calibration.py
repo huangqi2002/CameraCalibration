@@ -14,8 +14,8 @@ from PyQt5.QtWidgets import QLabel
 
 from controller.controller_base_tab import BaseControllerTab, lists_equal, calibrate_para_gen
 from model.app import app_model
-from server.aruco_vz import aruco_tool
-from server.camera_calib import Camera_Cali
+from server.aruco.aruco_vz import aruco_tool
+from server.aruco.camera_calib import Camera_Cali
 from server.external.ex_Calib import ex_calib
 from server.internal.boardSplit import getBoardPosition
 from server.internal.internal_server import *

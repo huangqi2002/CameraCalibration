@@ -5,13 +5,12 @@ import os
 from model.app import app_model
 from model.config import Config
 from model.device import Device
-from server.aruco_vz import aruco_tool
+from server.aruco.aruco_vz import aruco_tool
 from server.video.video_server import VideoServer
 
 from controller.controller_base import BaseController
 from controller.controller_common_bar import CommonBarController
 from controller.controller_internal_calibration import InternalCalibrationController
-from controller.controller_video_calibration import VideoCalibrationController
 from controller.controller_video_result import VideoResultController
 from controller.controller_log_view import LogViewController
 from utils.run_para import m_global

@@ -3,7 +3,7 @@
   "username": "admin",
   "password": "admin",
   "connect_timeout" : 1,
-  "m_connect_local": false,
+  "m_connect_local": true,
   "m_global_debug": true,
   "aruco_flag": true,
   "find_type": true,

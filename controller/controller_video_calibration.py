@@ -3,22 +3,17 @@
 # import sys
 import json
 import os
-import shutil
 import threading
-import time
 
 import cv2
-import numpy as np
 from PyQt5.QtCore import pyqtSignal
 
-from controller.controller_base_tab import BaseControllerTab, lists_equal
+from controller.controller_base_tab import BaseControllerTab
 from model.app import app_model
 # from server.external.lib3rd.load_lib import sdk
-from server.web.web_server import server
-from server.internal.boardSplit import getBoardPosition
+from server import server
 
 from utils.run_para import m_global
-import ctypes as C
 
 
 class VideoCalibrationController(BaseControllerTab):

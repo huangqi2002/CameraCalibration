@@ -1,5 +1,4 @@
 import json
-import os
 import urllib
 
 import cv2
@@ -7,10 +6,7 @@ import numpy as np
 import requests
 from requests_toolbelt import MultipartEncoder
 
-from model.app import app_model
-from model.config import Config
 from model.device import Device
-from server.web.web_server import server
 
 encoding = "UTF-8"
 HEADERS = {

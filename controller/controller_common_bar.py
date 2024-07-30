@@ -7,9 +7,8 @@ from PyQt5.QtCore import pyqtSignal, QTimer
 
 from controller.controller_base import BaseController
 from model.app import app_model
-from server.video.video_server import VideoServer
 from model.camera import Camera
-from server.web.web_server import *
+from server.web.web_server import server
 from utils.run_para import m_global
 
 

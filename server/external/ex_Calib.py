@@ -6,7 +6,7 @@ import random
 import numpy as np
 import cv2
 
-from server.aruco_vz import aruco_tool
+from server.aruco.aruco_vz import aruco_tool
 from server.internal.boardSplit import getBoardPosition
 
 
